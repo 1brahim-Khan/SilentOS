@@ -39,8 +39,8 @@ body:after{content:'';position:fixed;inset:0;background:#03091630;pointer-events
 </section>
 <aside class="sidebar glass" aria-label="Full transcript"><div class="panel-heading"><h2>Transcript</h2><button class="copy" id="copy" aria-label="Copy transcript" title="Copy transcript"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div><textarea id="transcript" aria-label="Editable transcript" placeholder="…" spellcheck="true"></textarea><section class="command-panel" aria-label="Command assembly"><h2 style="font-size:15px">Current command</h2><textarea id="commandText" aria-label="Assembled command" placeholder="Record one instruction across multiple clips."></textarea><p id="commandStatus" role="status" aria-live="polite"></p><button id="finishCommand" class="subtle">Finish command</button><button id="newCommand" class="subtle">New command</button><p style="font-size:11px">Finish phrase pauses capture. Finish command waits for all clips. Nothing is sent.</p></section></aside>
 </div>
-<div class="toolbar"><div class="settings-group"><label><select id="duration" aria-label="Clip length"><option value="3000">3 sec</option><option value="5000">5 sec</option><option value="6000">6 sec</option><option value="8000" selected>8 sec</option></select></label><label><input id="repeat" type="checkbox" checked> Continuous</label></div><div id="status" class="status" role="status" aria-live="polite">Connecting…</div></div>
-<details class="diagnostics"><summary>Details</summary><div class="detail-body glass"><p>Video only · Audio off · Clips processed by hosted FLARE.</p><p id="queueStatus"></p><p id="endpoint"></p><button class="subtle" id="recheck">Reconnect</button><button class="subtle" id="stop">Pause</button><ol id="history"></ol></div></details>
+<div class="toolbar"><div class="settings-group"><label><select id="duration" aria-label="Clip length"><option value="3000">3 sec</option><option value="5000">5 sec</option><option value="6000">6 sec</option><option value="8000" selected>8 sec</option><option value="15000">15 sec</option><option value="30000">30 sec</option><option value="60000">60 sec</option></select></label><label><input id="repeat" type="checkbox" checked> Continuous</label></div><div id="status" class="status" role="status" aria-live="polite">Connecting…</div></div>
+<details class="diagnostics"><summary>Details</summary><div class="detail-body glass"><p>Video only · Audio off · Clips processed by hosted FLARE.</p><p>Record up to 60 seconds per clip. Captions arrive after each clip is processed. Continuous starts another clip automatically.</p><p id="queueStatus"></p><p id="endpoint"></p><button class="subtle" id="recheck">Reconnect</button><button class="subtle" id="stop">Pause</button><ol id="history"></ol></div></details>
 <section class="handoff glass" aria-label="Message handoff">
 <div class="panel-heading"><h2>Message handoff</h2><button id="copyConnector" class="subtle">Copy HeyClicky connector command</button></div>
 <p id="handoffStatus" role="status" aria-live="polite">Finish a command to extract its message.</p>
@@ -106,7 +106,7 @@ async function drain(){
 function capture(){
  const mime=['video/webm;codecs=vp8','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported(t));
  if(!mime){active=false;note='No supported recording format. Try Chrome.';render();return;}
- const chunks=[];discard=false;captureStart=performance.now();captureLimit=Number($('duration').value);const began=captureStart;
+ const chunks=[];discard=false;captureStart=performance.now();captureLimit=Math.min(60000,Number($('duration').value));const began=captureStart;
  try{recorder=new MediaRecorder(stream,{mimeType:mime});}catch(e){fail(e.message);return;}
  recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
  recorder.onerror=()=>fail('Camera recording failed.');
@@ -114,7 +114,7 @@ function capture(){
  clearInterval(timer);recording=false;stopping=false;const stopped=performance.now();
  if(discard){render();return;}
  const blob=new Blob(chunks,{type:mime});
- if(stopped-began>8000||!blob.size){fail('Clip was empty or exceeded 8 seconds. Keep this tab visible.');return;}
+ if(stopped-began>60000||!blob.size){fail('Clip was empty or exceeded 60 seconds. Keep this tab visible.');return;}
  if(stopped-began<500){note='Clip shorter than 0.5 seconds skipped. Record a complete phrase.';active=false;render();return;}
  command.enqueue();queue.push({blob,began,stopped});
  if(!$('repeat').checked)active=false;
@@ -122,8 +122,8 @@ function capture(){
  drain();maybeCapture();render();
  };
  try{recorder.start();recording=true;}catch(e){fail(e.message);return;}
- // Leave 100ms for recorder shutdown at the API's hard eight-second limit.
- timer=setInterval(()=>{render();if(performance.now()-began>=Math.min(captureLimit,7900))endCapture();},50);render();
+ // Leave 150ms for recorder shutdown at the API's hard sixty-second limit.
+ timer=setInterval(()=>{render();if(performance.now()-began>=Math.min(captureLimit,59850))endCapture();},50);render();
 }
 async function openCamera(){if(opening||stream)return;opening=true;render();try{
  if(!navigator.mediaDevices||!window.MediaRecorder)throw new Error('Use a current browser on localhost.');

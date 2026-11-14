@@ -1,7 +1,7 @@
 # Hosted FLARE client
 
 Public API verified November 14, 2026:
-`https://triple-card-ministers-outsourcing.trycloudflare.com`
+`https://continually-priest-rural-moments.trycloudflare.com`
 
 The tunnel runs on Amarel within job 63918217 on gpuk010, independently of
 any laptop. The current allocation ends November 14 at 11:43 PM Eastern.
@@ -35,7 +35,7 @@ python3 flare.py
 python3 flare.py /absolute/path/to/clip.mp4
 ```
 
-Use a consented 2–5 second raw webcam recording, at most 8 seconds. MP4 or WebM; one face, front-facing and well lit. Do not crop or resize manually. For browser capture use `audio: false`. Uploading sends the video to the teammate's hosted service.
+Use a consented 2–5 second raw webcam recording, at most 60 seconds. MP4 or WebM; one face, front-facing and well lit. Do not crop or resize manually. For browser capture use `audio: false`. Uploading sends the video to the teammate's hosted service.
 
 The tunnel is temporary. Override it without editing code:
 
@@ -55,7 +55,7 @@ const result = await transcribeVideo(recordedBlob);
 
 The browser helper accepts an optional second argument for a replacement URL. Browser calls require the server to permit your origin through CORS. Python success does not prove browser success. Do not manually set multipart Content-Type. Do not retry timed-out uploads automatically: the GPU may still be processing them.
 
-Check readiness once at session start. Transcription verifies a nonempty transcript and `audio_used: false`, without an extra readiness request. Clip duration is enforced by the server. Keep Start/Stop recording under 8 seconds, show processing state, and prevent duplicate submissions in your UI. These client helpers do not record video or execute agent actions; the local camera page below records video.
+Check readiness once at session start. Transcription verifies a nonempty transcript and `audio_used: false`, without an extra readiness request. Clip duration is enforced by the server. Keep recordings under 60 seconds, show processing state, and prevent duplicate submissions in your UI. These client helpers do not record video or execute agent actions; the local camera page below records video.
 
 Next live check: upload a real clip, inspect transcript and timing, then test from the actual frontend origin. The guide reports a finite GPU allocation; reconfirm availability before a demo.
 
@@ -68,7 +68,7 @@ python3 server.py
 
 Open http://localhost:8000, allow camera access when prompted, then press Start. The camera opens automatically and stays on between phrases until the page closes. The backend must run on your laptop for this localhost URL to work there. Use `--port 8001` if necessary. No additional dependencies.
 
-The browser captures audio-free MP4/WebM clips with an eight-second default (3, 5, and 6 seconds are also available) and sends raw video bodies to local `POST /api/transcribe`. Eight-second capture stops about 100ms early to allow recorder shutdown within the API limit. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
+The browser captures audio-free MP4/WebM clips with an eight-second default (3, 5, 6, 15, 30, and 60 seconds are also available) and sends raw video bodies to local `POST /api/transcribe`. The 60-second option stops about 150ms early to allow recorder shutdown within the API limit. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
 
 Continue recording mode captures the next phrase while the previous upload processes. Finish phrase submits early and pauses recording without disabling the camera. Press Start to resume, including while a prior phrase is processing. There is one in-flight request and at most two waiting clips. Capture pauses when the queue is full and resumes when space opens; watch the Recording/Catching up status. Clips remain separate phrases; automatic cut points can split words. Pause (under Details) submits the final partial recording and keeps the camera ready; a request already processing can still return its transcript. No transcript triggers agent execution.
 
@@ -146,3 +146,22 @@ See [HEYCLICKY.md](HEYCLICKY.md) for setup, supported phrasing, draft testing,
 recovery, and privacy. A connected **active** HeyClicky job is still needed; no
 automatic external wakeup or live message sending has been verified. Queueing
 alone never opens a messaging app or sends. End-to-end tests are still required.
+
+## Longer recordings
+
+Eight seconds remains the default; 15, 30, and 60 seconds are also available.
+Each clip is uploaded in one request and transcribed as a whole, without browser
+segmentation. Captions arrive after the entire clip is processed. Continuous
+starts another clip automatically; uncheck it to stop after one clip.
+Finish phrase submits early and pauses.
+
+The hosted preprocessing duration limit is 60 seconds, with a 3,601-source-frame
+budget (up to 60 FPS). Model dataset filtering and cropping limits are 1,502
+frames to preserve a full minute resampled to 25 FPS. Input-frame preservation
+is checked before inference. The existing 50 MiB local upload limit still applies.
+The backend update is deployed in the existing Amarel model project; its source
+is managed separately from this client repository. A real 60-second repeated
+public-footage upload preserved all 1,500 frames and returned a transcript through
+the local proxy and public tunnel. This checks capacity, not long-form accuracy.
+
+Regression: `node tests/long_capture.cjs`.
