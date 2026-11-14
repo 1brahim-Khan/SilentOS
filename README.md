@@ -132,3 +132,21 @@ No parsing, HeyClicky integration, or message sending is performed.
 
 Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
 `python3 -m unittest discover -s tests -p 'test_*.py'`.
+
+## Two-device caption and voice demo
+
+This is a one-way, turn-based conversation demo: the speaker records and reviews text on the Mac, and a listener sees captions and can use their browser's text-to-speech. It does **not** yet provide live video, microphone return audio, automatic transcript stitching, or a telephone call. Room transport uses short HTTP polling, not WebSockets. A working FLARE endpoint is required for transcription; a message can also be typed into Current command and finished for a text-only room test.
+
+On the speaker's Mac, connect both devices to a trusted LAN/hotspot that permits device-to-device traffic, then run:
+
+```sh
+python3 server.py --lan --api-url https://CURRENT-FLARE-HOST
+```
+
+Open `http://localhost:8000` on the Mac (localhost is needed for camera permission). Create a room in **Two-device conversation**. Find the Mac's LAN IPv4 address in Wi-Fi settings, or run `ipconfig getifaddr en0` on macOS (your active interface might differ). Enter it in Host LAN IP, copy the generated link, and share it privately with the listener. The listener opens that link on the second device and taps **Enable voice** and **Test voice**. The listener page needs neither camera nor microphone permission.
+
+On the speaker, record a phrase, click **Finish command**, review/edit the command, and click **Send reviewed command to listener**. The status indicates that the listener fetched the message; it does not prove audio played. Browser voices and autoplay policies vary: test the actual listener device. Captions arriving before voice is enabled are shown as text only. The browser queues spoken messages in order.
+
+Rooms expire after one hour, are held only in server memory, and disappear on restart. Listener links grant access to captions to anyone who holds them; create a fresh room if a link leaks. This LAN demo uses **unencrypted HTTP**, so use it only on a trusted private network; it is not suitable for sensitive conversations or public exposure. Camera/video upload and room creation are restricted to the server machine. The listener can only read and acknowledge captions, not submit speaker messages. Messages are retained in memory until room expiry/restart (maximum 200 per room). A receipt means the listener page received text, not that speech played. For remote devices or HTTPS on both phones, use a properly authenticated HTTPS deployment; do not expose the development server directly to the internet.
+
+If the listener cannot connect, check the IP address, server's `--lan` flag, firewall permissions, and client isolation on Wi-Fi. If transcription fails, get the current FLARE API URL; an expired tunnel cannot be fixed by the room. The room and UI tests are automated, but a real second device and actual audio playback still require manual validation.

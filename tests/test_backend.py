@@ -75,3 +75,27 @@ class BackendTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class RoomTests(BackendTests):
+    def test_room_delivery_and_permissions(self):
+        def post(path, payload):
+            return self.call(path, json.dumps(payload).encode(), {'Content-Type': 'application/json'})
+        code, data = post('/api/room/create', {})
+        self.assertEqual(code, 200)
+        credentials = json.loads(data)
+        room_id = credentials['room']
+        speaker = credentials['speaker_token']
+        listener = credentials['listener_token']
+        code, _ = post('/api/room/send', {'room': room_id, 'token': listener, 'text': 'wrong role'})
+        self.assertEqual(code, 400)
+        code, data = post('/api/room/send', {'room': room_id, 'token': speaker, 'text': 'hello'})
+        self.assertEqual(json.loads(data)['id'], 1)
+        path = '/api/room/poll?room=' + room_id + '&role=listener&after=0'
+        code, data = self.call(path, headers={'Authorization': 'Bearer ' + listener})
+        self.assertEqual(json.loads(data)['messages'][0]['text'], 'hello')
+        self.assertEqual(post('/api/room/ack', {'room': room_id, 'token': listener, 'id': 1})[0], 200)
+        code, data = self.call('/api/room/poll?room=' + room_id + '&role=speaker', headers={'Authorization': 'Bearer ' + speaker})
+        self.assertEqual(json.loads(data)['received_through'], 1)
+        self.assertTrue(json.loads(data)['listener_connected'])
+        self.assertEqual(self.call(path, headers={'Authorization': 'Bearer invalid'})[0], 403)
+        self.assertEqual(self.call('/listen')[0], 200)
