@@ -110,3 +110,25 @@ in the side panel. Start rechecks service readiness after an error without a rel
 Prism Gradient uses Componentry’s WebGL shader adapted to plain JavaScript
 (`static/prism.js`, MIT attribution in `static/COMPONENTRY-LICENSE.txt`), with
 reduced-motion support and a CSS fallback when WebGL2 is unavailable.
+
+## Command assembly
+
+Press Start and record one instruction across multiple clips. The Current command
+panel joins returned clips in capture order with a space; it preserves wording,
+punctuation, and repetitions rather than guessing missing or overlapping words.
+Finish phrase (or Pause) pauses capture without closing the command. Start adds
+more clips to that same draft. Finish command stops capture and waits for the
+last recording and all queued uploads before marking the text Ready for review.
+With Continuous unchecked, each clip pauses capture but still belongs to the
+current command until Finish command is pressed.
+
+Review or edit the command while capture and uploads are idle. New command clears
+the current command without clearing transcript history. Recording, camera, or
+transcription failures mark the command Incomplete and require New command before
+recording another instruction. Clips shorter than half a second are still skipped.
+Commands live only in browser memory and are lost on reload. Ready means all clips
+returned, not that the instruction is semantically complete or correctly recognized.
+No parsing, HeyClicky integration, or message sending is performed.
+
+Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
+`python3 -m unittest discover -s tests -p 'test_*.py'`.

@@ -23,6 +23,7 @@ body:after{content:'';position:fixed;inset:0;background:#03091630;pointer-events
 .toolbar{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-top:14px;color:#eff5ff;text-shadow:0 1px 8px #0008}.toolbar .status{flex:0 1 auto;font-size:11px;text-align:right;max-width:60%}.settings-group{font-size:11px;gap:18px;color:#eff5ff}.settings-group label{display:flex;align-items:center;gap:7px}select{background:#12223a9c;border-color:#ffffff55;padding:7px 10px;font-size:11px}input{accent-color:#d4e7ff}.diagnostics{margin-top:14px;color:#eef4ff}.diagnostics summary{opacity:.8}.detail-body{padding:16px;margin-top:12px;border-radius:16px}.detail-body p{margin:0 0 10px}
 @media(max-width:900px){.shell{padding:20px}.workspace{grid-template-columns:minmax(0,1fr) 250px}.sidebar{padding:18px}.toolbar .status{max-width:50%}}
 @media(max-width:680px){.shell{padding:14px}.topbar{margin-bottom:14px}.tagline{font-size:11px;max-width:145px;text-align:right}.workspace{height:auto;min-height:0;grid-template-columns:1fr}.camera{height:68dvh;min-height:400px}.sidebar{min-height:0;height:300px}.toolbar{align-items:start;flex-direction:column;gap:10px}.toolbar .status{text-align:left;max-width:100%}.controls button{padding:12px 22px}.brand{font-size:21px}}
+.command-panel{margin-top:18px;border-top:1px solid #ffffff40;padding-top:14px}.command-panel textarea{min-height:90px;height:100px;font-size:14px;resize:vertical}.command-panel button{margin:5px 3px 0 0}.sidebar{overflow:auto}#commandStatus{font-size:12px}
 </style></head><body>
 <canvas id="prism" aria-hidden="true"></canvas>
 <main class="shell">
@@ -35,23 +36,33 @@ body:after{content:'';position:fixed;inset:0;background:#03091630;pointer-events
 <div class="camera-bottom"><div id="captionWrap" hidden><p class="caption" id="caption" role="status" aria-live="polite"></p></div>
 <div class="controls" role="group" aria-label="Recording controls"><button id="start" class="primary" disabled><span class="record-icon" aria-hidden="true"></span>Start</button><button id="finish" disabled>Finish phrase</button></div></div>
 </section>
-<aside class="sidebar glass" aria-label="Full transcript"><div class="panel-heading"><h2>Transcript</h2><button class="copy" id="copy" aria-label="Copy transcript" title="Copy transcript"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div><textarea id="transcript" aria-label="Editable transcript" placeholder="…" spellcheck="true"></textarea></aside>
+<aside class="sidebar glass" aria-label="Full transcript"><div class="panel-heading"><h2>Transcript</h2><button class="copy" id="copy" aria-label="Copy transcript" title="Copy transcript"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div><textarea id="transcript" aria-label="Editable transcript" placeholder="…" spellcheck="true"></textarea><section class="command-panel" aria-label="Command assembly"><h2 style="font-size:15px">Current command</h2><textarea id="commandText" aria-label="Assembled command" placeholder="Record one instruction across multiple clips."></textarea><p id="commandStatus" role="status" aria-live="polite"></p><button id="finishCommand" class="subtle">Finish command</button><button id="newCommand" class="subtle">New command</button><p style="font-size:11px">Finish phrase pauses capture. Finish command waits for all clips. Nothing is sent.</p></section></aside>
 </div>
 <div class="toolbar"><div class="settings-group"><label><select id="duration" aria-label="Clip length"><option value="3000">3 sec</option><option value="5000">5 sec</option><option value="6000">6 sec</option><option value="8000" selected>8 sec</option></select></label><label><input id="repeat" type="checkbox" checked> Continuous</label></div><div id="status" class="status" role="status" aria-live="polite">Connecting…</div></div>
 <details class="diagnostics"><summary>Details</summary><div class="detail-body glass"><p>Video only · Audio off · Clips processed by hosted FLARE.</p><p id="queueStatus"></p><p id="endpoint"></p><button class="subtle" id="recheck">Reconnect</button><button class="subtle" id="stop">Pause</button><ol id="history"></ol></div></details>
 </main>
+<script src="/command.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+let command=new CommandAssembly(),finishRequested=false;
 const queue=[]; const MAX_WAITING=2;
 let stream,recorder,timer,active=false,busy=false,ready=false,checking=false,opening=false,recording=false,stopping=false;
 let note='Checking model…',captureStart=0,captureLimit=0,discard=false;
 function render(){
+ if(finishRequested&&!recording&&!stopping&&!busy&&!queue.length){command.finish();finishRequested=false;}
+ const locked=recording||stopping||busy||queue.length>0||active||finishRequested;
+ $('commandText').readOnly=locked||command.state==='cancelled';
+ if(locked||command.state==='empty')$('commandText').value=command.text;
+ $('commandStatus').textContent=finishRequested?'Waiting for transcripts…':({draft:'Draft — add clips or finish command.',waiting:'Waiting for transcripts…',ready:'Ready for review — not sent.',empty:'No command recorded.',incomplete:'Incomplete — '+command.error+'. Start a new command and repeat the instruction.',cancelled:'Cancelled.'})[command.state];
+ $('finishCommand').disabled=finishRequested||command.sealed||Boolean(command.error)||(!locked&&!command.text);
+ $('newCommand').disabled=locked;
+
  $('camera').dataset.camera=String(Boolean(stream));
  $('camera').dataset.recording=String(recording);
  $('captureState').textContent=opening?'Opening camera…':recording?'Recording':active&&queue.length>=MAX_WAITING?'Catching up':busy?'Processing phrase':stream?'Camera ready':'Camera offline';
  $('enable').disabled=opening||active||recording||busy||queue.length>0;
  $('enable').hidden=Boolean(stream)||opening;
- $('start').disabled=!stream||active||recording||checking||opening||stopping||queue.length>=MAX_WAITING;
+ $('start').disabled=finishRequested||command.sealed||Boolean(command.error)||!stream||active||recording||checking||opening||stopping||queue.length>=MAX_WAITING;
  $('finish').disabled=!recording||stopping;
  $('stop').disabled=!active&&!recording;
  $('recheck').disabled=checking||busy||active||recording||queue.length>0;
@@ -62,7 +73,7 @@ async function api(path,options={}){const r=await fetch(path,{...options,signal:
 async function check(){checking=true;render();try{const r=await api('/api/ready');ready=r.model_loaded===true;note=ready?'Ready':'Model unavailable.';}catch(e){ready=false;note=e.message;}finally{checking=false;render();}}
 function endCapture(){if(recorder?.state==='recording'){clearInterval(timer);stopping=true;recorder.stop();render();}}
 function fail(message){
- active=false;ready=false;const lost=queue.length+(recording?1:0);queue.length=0;discard=true;endCapture();
+ command.fail(message);finishRequested=false;active=false;ready=false;const lost=queue.length+(recording?1:0);queue.length=0;discard=true;endCapture();
  note=`${message} No retry sent. ${lost} unsent clip(s) discarded; repeat those phrases. Check connection before restarting.`;render();
 }
 function maybeCapture(){if(active&&stream&&!recording&&!stopping&&queue.length<MAX_WAITING)capture();else render();}
@@ -72,6 +83,7 @@ async function drain(){
  try{
  const r=await api('/api/transcribe',{method:'POST',headers:{'Content-Type':clip.blob.type},body:clip.blob});
  if(typeof r.text!=='string'||!r.text.trim()||r.audio_used!==false)throw new Error('Invalid visual-only transcript');
+ command.accept(r.text);$('commandText').value=command.text;
  const now=performance.now();$('transcript').value+=($('transcript').value?'\n':'')+r.text;
  $('caption').textContent=r.text.trim();$('captionWrap').hidden=false;
  const li=document.createElement('li');const seconds=ms=>(ms/1000).toFixed(2)+'s';
@@ -92,7 +104,7 @@ function capture(){
  const blob=new Blob(chunks,{type:mime});
  if(stopped-began>8000||!blob.size){fail('Clip was empty or exceeded 8 seconds. Keep this tab visible.');return;}
  if(stopped-began<500){note='Clip shorter than 0.5 seconds skipped. Record a complete phrase.';active=false;render();return;}
- queue.push({blob,began,stopped});
+ command.enqueue();queue.push({blob,began,stopped});
  if(!$('repeat').checked)active=false;
  note=active?'Processing…':'Paused';
  drain();maybeCapture();render();
@@ -104,13 +116,16 @@ function capture(){
 async function openCamera(){if(opening||stream)return;opening=true;render();try{
  if(!navigator.mediaDevices||!window.MediaRecorder)throw new Error('Use a current browser on localhost.');
  stream?.getTracks().forEach(t=>t.stop());stream=null;$('preview').srcObject=null;
- stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30},facingMode:'user'},audio:false});$('preview').srcObject=stream;stream.getVideoTracks().forEach(track=>track.addEventListener('ended',()=>{active=false;discard=true;endCapture();stream=null;$('preview').srcObject=null;note='Camera disconnected.';$('cameraMessage').textContent=note;render();}));note=ready?'Ready':'Connecting…';
+ stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30},facingMode:'user'},audio:false});$('preview').srcObject=stream;stream.getVideoTracks().forEach(track=>track.addEventListener('ended',()=>{active=false;discard=true;endCapture();stream=null;$('preview').srcObject=null;command.fail('Camera disconnected');finishRequested=false;note='Camera disconnected.';$('cameraMessage').textContent=note;render();}));note=ready?'Ready':'Connecting…';
  }catch(e){note=e.message;$('cameraMessage').textContent='Camera unavailable. Allow camera access, then retry.';}finally{opening=false;render();}}
 $('enable').onclick=openCamera;
 $('start').onclick=async()=>{if($('start').disabled)return;if(!ready){await check();if(!ready)return;}active=true;maybeCapture();};
 function finishPhrase(){active=false;endCapture();note='Paused';render();}
 $('finish').onclick=finishPhrase;
 $('stop').onclick=finishPhrase;
+$('finishCommand').onclick=()=>{if($('finishCommand').disabled)return;finishRequested=true;active=false;endCapture();render();};
+$('newCommand').onclick=()=>{if($('newCommand').disabled)return;command.cancel();command=new CommandAssembly();finishRequested=false;$('commandText').value='';render();};
+$('commandText').oninput=()=>{if(!$('commandText').readOnly){command.parts=[$('commandText').value.trim()];render();}};
 $('recheck').onclick=check;
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('transcript').value);note='Transcript copied to clipboard.';render();}catch{note='Select and copy the text manually.';render();}};
 window.addEventListener('pagehide',()=>{active=false;discard=true;queue.length=0;clearInterval(timer);stream?.getTracks().forEach(t=>t.stop());});

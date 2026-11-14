@@ -37,6 +37,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
             self.send(200, PAGE.read_bytes(), 'text/html; charset=utf-8')
+        elif self.path == '/command.js':
+            self.send(200, (PAGE.parent / 'command.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/prism.js':
             self.send(200, (PAGE.parent / 'prism.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/api/config':
