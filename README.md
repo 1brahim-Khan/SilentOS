@@ -24,7 +24,7 @@ FLARE service expires, stop the app, then launch with the current address:
 ```
 
 The local interface works without the hosted service, but transcription requires
-a reachable FLARE model. Enable camera and grant browser permission, then Start.
+a reachable FLARE model. The camera opens automatically after browser permission; press Start to record.
 
 The hosted model reported ready during setup on November 14, 2026. A real clip has not yet been transcribed with these clients. No local GPU, model installation, or Python packages are required.
 
@@ -66,11 +66,11 @@ cd SilentOS
 python3 server.py
 ```
 
-Open http://localhost:8000, choose Enable camera, grant permission, then Start. The backend must run on your Mac for this localhost URL to work there. Use `--port 8001` if necessary. No additional dependencies.
+Open http://localhost:8000, allow camera access when prompted, then press Start. The camera opens automatically and stays on between phrases until the page closes. The backend must run on your laptop for this localhost URL to work there. Use `--port 8001` if necessary. No additional dependencies.
 
 The browser captures audio-free MP4/WebM clips with an eight-second default (3, 5, and 6 seconds are also available) and sends raw video bodies to local `POST /api/transcribe`. Eight-second capture stops about 100ms early to allow recorder shutdown within the API limit. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
 
-Continue recording mode captures the next phrase while the previous upload processes. Finish phrase submits early without disabling the camera. There is one in-flight request and at most two waiting clips. Capture pauses when the queue is full and resumes when space opens; watch the Recording/Catching up status. Clips remain separate phrases; automatic cut points can split words. Stop disables the camera and submits the final partial recording; a request already processing can still return its transcript. No transcript triggers agent execution.
+Continue recording mode captures the next phrase while the previous upload processes. Finish phrase submits early and pauses recording without disabling the camera. Press Start to resume, including while a prior phrase is processing. There is one in-flight request and at most two waiting clips. Capture pauses when the queue is full and resumes when space opens; watch the Recording/Catching up status. Clips remain separate phrases; automatic cut points can split words. Pause (under Details) submits the final partial recording and keeps the camera ready; a request already processing can still return its transcript. No transcript triggers agent execution.
 
 Validation: the local backend returned the real transcript “set a reminder for tomorrow” from the supplied audio-free MP4, with `audio_used: false`. Python and browser script syntax checks passed. Live camera permissions and recording behavior still need browser testing. The tunnel and GPU allocation are temporary; update FLARE_API_URL before starting the server if they change. This server is intended for local development only, not public deployment.
 
@@ -101,3 +101,12 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Backend tests use simulated upstream responses. Live model accuracy and actual camera permissions require an available API and a browser test.
+
+## SilentOS interface
+
+The camera opens on page load, with audio disabled; capture begins only on Start.
+The latest completed phrase appears over the video; the full transcript is editable
+in the side panel. Start rechecks service readiness after an error without a reload.
+Prism Gradient uses Componentry’s WebGL shader adapted to plain JavaScript
+(`static/prism.js`, MIT attribution in `static/COMPONENTRY-LICENSE.txt`), with
+reduced-motion support and a CSS fallback when WebGL2 is unavailable.

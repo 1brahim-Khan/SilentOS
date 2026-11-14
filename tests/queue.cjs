@@ -1,19 +1,25 @@
 // Deterministic camera/network simulation; no real uploads.
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const html=fs.readFileSync(__dirname+'/../static/index.html','utf8');
-const elements={};const el=id=>elements[id]??=( {value:id==='duration'?'8000':'',checked:true,prepend(){}} );
-let now=0,requests=[],instances=[];
+const elements={};const el=id=>elements[id]??=( {value:id==='duration'?'8000':'',checked:true,dataset:{},prepend(){}} );
+let now=0,requests=[],instances=[],cameraOpens=0,trackStops=0;
 class Recorder{static isTypeSupported(){return true}constructor(){this.state='inactive';instances.push(this)}start(){this.state='recording'}stop(){this.state='inactive';this.ondataavailable({data:new Blob(['video'])});setImmediate(()=>this.onstop())}}
-const context={document:{getElementById:el,createElement:()=>({})},performance:{now:()=>now},Blob,AbortSignal,MediaRecorder:Recorder,window:{MediaRecorder:Recorder,addEventListener(){}},navigator:{mediaDevices:{getUserMedia:async()=>({getTracks:()=>[{stop(){}}],getVideoTracks:()=>[{addEventListener(){}}]})}},setInterval:()=>1,clearInterval(){},fetch:async(path)=>{if(path==='/api/config')return{ok:true,json:async()=>({api_url:'test'})};if(path==='/api/ready')return{ok:true,json:async()=>({model_loaded:true})};return new Promise(resolve=>requests.push(resolve));}};
+const context={document:{getElementById:el,createElement:()=>({})},performance:{now:()=>now},Blob,AbortSignal,MediaRecorder:Recorder,window:{MediaRecorder:Recorder,addEventListener(){}},navigator:{mediaDevices:{getUserMedia:async()=>{cameraOpens++;return {getTracks:()=>[{stop(){trackStops++}}],getVideoTracks:()=>[{addEventListener(){}}]}}}},setInterval:()=>1,clearInterval(){},fetch:async(path)=>{if(path==='/api/config')return{ok:true,json:async()=>({api_url:'test'})};if(path==='/api/ready')return{ok:true,json:async()=>({model_loaded:true})};return new Promise(resolve=>requests.push(resolve));}};
 vm.createContext(context);vm.runInContext(html.split('<script>')[1].split('</script>')[0],context);
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{
- await flush();await el('enable').onclick();el('start').onclick();
- const finish=async()=>{now+=1000;el('finish').onclick();assert.equal(el('finish').disabled,true);await flush()};
+ await flush();assert.equal(cameraOpens,1);assert.equal(el('enable').hidden,true);await el('start').onclick();
+ // Explicit Finish pauses and Start resumes before the previous upload finishes.
+ now+=1000;el('finish').onclick();assert.equal(el('start').disabled,true);await flush();
+ assert.equal(instances.at(-1).state,'inactive');assert.equal(el('start').disabled,false);
+ await el('start').onclick();assert.equal(instances.at(-1).state,'recording');assert.equal(requests.length,1);
+ assert.equal(cameraOpens,1);assert.equal(trackStops,0);
+ const finish=async()=>{now+=1000;vm.runInContext('endCapture()',context);assert.equal(el('finish').disabled,true);await flush()};
  await finish();assert.equal(requests.length,1);assert.equal(instances.at(-1).state,'recording');
- await finish();await finish();assert.equal(requests.length,1);assert.match(el('queueStatus').textContent,/2\/2 waiting/);assert.match(el('status').textContent,/Catching up/);
+ await finish();assert.equal(requests.length,1);assert.match(el('queueStatus').textContent,/2\/2 waiting/);assert.match(el('status').textContent,/Catching up/);
  requests[0]({ok:true,json:async()=>({text:'first',audio_used:false})});await flush();assert.equal(requests.length,2);assert.equal(instances.at(-1).state,'recording');
  el('stop').onclick();await flush();assert.equal(instances.at(-1).state,'inactive');
- requests[1]({ok:false,json:async()=>({error:'offline'})});await flush();assert.equal(requests.length,2);assert.match(el('status').textContent,/discarded/);assert.equal(el('start').disabled,true);
- assert.equal(el('transcript').value,'first');console.log('PASS: overlap, queue bound, serialized uploads, stop, failure clearing, transcript order');
+ requests[1]({ok:false,json:async()=>({error:'offline'})});await flush();assert.equal(requests.length,2);assert.match(el('status').textContent,/discarded/);assert.equal(el('start').disabled,false);
+ await el('start').onclick();assert.equal(instances.at(-1).state,'recording');assert.equal(cameraOpens,1);assert.equal(trackStops,0);
+ assert.equal(el('transcript').value,'first');assert.equal(el('caption').textContent,'first');assert.equal(el('captionWrap').hidden,false);console.log('PASS: overlap, queue bound, serialized uploads, stop, failure clearing, transcript order, video captions, automatic camera, finish/restart, recovery');
 })().catch(e=>{console.error(e);process.exitCode=1});
