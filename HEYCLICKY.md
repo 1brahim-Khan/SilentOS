@@ -135,3 +135,16 @@ background agent job successfully called `silentos_list_commands`, returning the
 cancelled browser-test command. This verifies live stdio tool discovery and queue
 reading through HeyClicky. It does not yet verify claim/report tools inside
 HeyClicky, drafting in Messages/WhatsApp, continuous pickup, or sending.
+
+An additional authorized iMessage draft test passed on November 14, 2026:
+SilentOS parsed a manually entered assembled command, queued it in draft mode,
+and a fresh HeyClicky agent claimed it, opened the designated conversation,
+prepared the exact test text, and reported `prepared` through the connector.
+The agent reported that the composer was empty before typing and no Send/Return
+was pressed. The user subsequently confirmed manually sending the test draft.
+The observed Delivered message therefore does not validate automated sending.
+The test used typed command input, not a fresh FLARE camera recording.
+
+Verified live: connector discovery, queue reads, atomic claim, iMessage draft
+preparation, and result reporting. Still unverified: continuous listener behavior,
+automated sends, SMS, WhatsApp, and the full camera-to-message path.
