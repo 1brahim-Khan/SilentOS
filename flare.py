@@ -12,7 +12,7 @@ import urllib.parse
 import uuid
 
 #DEFAULT_URL = "https://frames-tickets-follow-idol.trycloudflare.com"
-DEFAULT_URL = "https://modules-duplicate-coaches-present.trycloudflare.com"
+DEFAULT_URL = "https://triple-card-ministers-outsourcing.trycloudflare.com"
 
 
 def request(base_url, endpoint, data=None, headers=None, timeout=120):

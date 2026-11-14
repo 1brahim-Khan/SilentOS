@@ -1,5 +1,31 @@
 # Hosted FLARE client
 
+Public API verified November 14, 2026:
+`https://triple-card-ministers-outsourcing.trycloudflare.com`
+
+The tunnel runs on Amarel within job 63918217 on gpuk010, independently of
+any laptop. The current allocation ends November 14 at 11:43 PM Eastern.
+Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart
+field `video`. This is a temporary API URL, not a hosted camera webpage.
+The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63918217.log`
+on Amarel. A new allocation and tunnel will be needed after the job ends.
+
+## Windows quick start
+
+Double-click `Start-SilentOS.cmd` to start the local server and open your browser.
+Python 3 is required; no extra packages are needed. The server runs in the
+background. Its logs are `server.log` and `server-error.log`.
+
+From PowerShell, stop it with `./Start-SilentOS.ps1 -Stop`. If the temporary
+FLARE service expires, stop the app, then launch with the current address:
+
+```powershell
+./Start-SilentOS.ps1 -ApiUrl https://CURRENT-FLARE-HOST
+```
+
+The local interface works without the hosted service, but transcription requires
+a reachable FLARE model. Enable camera and grant browser permission, then Start.
+
 The hosted model reported ready during setup on November 14, 2026. A real clip has not yet been transcribed with these clients. No local GPU, model installation, or Python packages are required.
 
 From the HackPrinceton workspace:
@@ -42,7 +68,7 @@ python3 server.py
 
 Open http://localhost:8000, choose Enable camera, grant permission, then Start. The backend must run on your Mac for this localhost URL to work there. Use `--port 8001` if necessary. No additional dependencies.
 
-The browser captures audio-free 3–6 second MP4/WebM clips and sends raw video bodies to local `POST /api/transcribe`. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
+The browser captures audio-free MP4/WebM clips with an eight-second default (3, 5, and 6 seconds are also available) and sends raw video bodies to local `POST /api/transcribe`. Eight-second capture stops about 100ms early to allow recorder shutdown within the API limit. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
 
 Continue recording mode captures the next phrase while the previous upload processes. Finish phrase submits early without disabling the camera. There is one in-flight request and at most two waiting clips. Capture pauses when the queue is full and resumes when space opens; watch the Recording/Catching up status. Clips remain separate phrases; automatic cut points can split words. Stop disables the camera and submits the final partial recording; a request already processing can still return its transcript. No transcript triggers agent execution.
 

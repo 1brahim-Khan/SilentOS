@@ -7,7 +7,7 @@ body{font:16px system-ui;background:#10151e;color:#e8eff9;max-width:1050px;margi
 <h1>Silent</h1><p>Camera → FLARE → editable text. Audio capture is disabled. Recordings are sent to the team's hosted FLARE service and temporary local files are deleted after processing.</p>
 <div class="grid"><section><video id="preview" autoplay muted playsinline></video>
 <div><button id="enable">Enable camera</button><button id="start" disabled>Start</button><button id="finish" disabled>Finish phrase</button><button id="stop" disabled>Stop</button></div>
-<label>Clip length <select id="duration"><option value="3000">3 seconds</option><option value="5000" selected>5 seconds</option><option value="6000">6 seconds</option></select></label>
+<label>Clip length <select id="duration"><option value="3000">3 seconds</option><option value="5000">5 seconds</option><option value="6000">6 seconds</option><option value="8000" selected>8 seconds</option></select></label>
 <label><input id="repeat" type="checkbox" checked> Continue recording</label>
 <p>Speak silently only while the status says Recording. Recording continues during processing, pausing only when two clips are waiting. Each clip is a separate phrase; this is not word-by-word streaming.</p>
 </section><section><div class="status" id="status" role="status" aria-live="polite">Checking model…</div><p id="queueStatus"></p><p id="endpoint"></p><button id="recheck">Check connection</button><label for="transcript">Transcript — review and edit</label><textarea id="transcript"></textarea><button id="copy">Copy text</button><ol id="history"></ol></section></div>
@@ -56,7 +56,7 @@ function capture(){
  clearInterval(timer);recording=false;stopping=false;const stopped=performance.now();
  if(discard){render();return;}
  const blob=new Blob(chunks,{type:mime});
- if(stopped-began>7500||!blob.size){fail('Clip was empty or exceeded 7.5 seconds. Keep this tab visible.');return;}
+ if(stopped-began>8000||!blob.size){fail('Clip was empty or exceeded 8 seconds. Keep this tab visible.');return;}
  if(stopped-began<500){note='Clip shorter than 0.5 seconds skipped. Record a complete phrase.';active=false;render();return;}
  queue.push({blob,began,stopped});
  if(!$('repeat').checked)active=false;
@@ -64,7 +64,8 @@ function capture(){
  drain();maybeCapture();render();
  };
  try{recorder.start();recording=true;}catch(e){fail(e.message);return;}
- timer=setInterval(()=>{render();if(performance.now()-began>=captureLimit)endCapture();},100);render();
+ // Leave 100ms for recorder shutdown at the API's hard eight-second limit.
+ timer=setInterval(()=>{render();if(performance.now()-began>=Math.min(captureLimit,7900))endCapture();},50);render();
 }
 $('enable').onclick=async()=>{opening=true;render();try{
  if(!navigator.mediaDevices||!window.MediaRecorder)throw new Error('Use a current browser on localhost.');

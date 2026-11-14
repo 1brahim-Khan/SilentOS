@@ -1,7 +1,7 @@
 // Deterministic camera/network simulation; no real uploads.
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const html=fs.readFileSync(__dirname+'/../static/index.html','utf8');
-const elements={};const el=id=>elements[id]??=( {value:id==='duration'?'5000':'',checked:true,prepend(){}} );
+const elements={};const el=id=>elements[id]??=( {value:id==='duration'?'8000':'',checked:true,prepend(){}} );
 let now=0,requests=[],instances=[];
 class Recorder{static isTypeSupported(){return true}constructor(){this.state='inactive';instances.push(this)}start(){this.state='recording'}stop(){this.state='inactive';this.ondataavailable({data:new Blob(['video'])});setImmediate(()=>this.onstop())}}
 const context={document:{getElementById:el,createElement:()=>({})},performance:{now:()=>now},Blob,AbortSignal,MediaRecorder:Recorder,window:{MediaRecorder:Recorder,addEventListener(){}},navigator:{mediaDevices:{getUserMedia:async()=>({getTracks:()=>[{stop(){}}],getVideoTracks:()=>[{addEventListener(){}}]})}},setInterval:()=>1,clearInterval(){},fetch:async(path)=>{if(path==='/api/config')return{ok:true,json:async()=>({api_url:'test'})};if(path==='/api/ready')return{ok:true,json:async()=>({model_loaded:true})};return new Promise(resolve=>requests.push(resolve));}};
