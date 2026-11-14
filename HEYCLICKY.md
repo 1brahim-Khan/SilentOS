@@ -24,10 +24,10 @@ The parser preserves message wording and does not interpret instructions inside 
 
 1. Start SilentOS (`python3 server.py`) and open its page on localhost.
 2. Click **Copy HeyClicky connector command**.
-3. In HeyClicky, open **Settings → Integrations → Add custom connector**. Choose
-   the local-command/stdio option and name it **SilentOS**.
-4. Paste the copied command. If separate fields are shown, use the Python executable
-   as Command and the absolute `heyclicky_mcp.py` path as its single argument.
+3. In HeyClicky, open **Settings → Integrations → Add custom connector**. Name it **SilentOS**, then open **Advanced → Command on this Mac**.
+4. Set **Command** to the Python executable (for this Mac, `/usr/bin/python3`).
+   Set **Arguments** to the absolute `heyclicky_mcp.py` path. Quote the path if
+   it contains spaces. No environment variables or API key are required.
 5. Approve access to queued transcripts, recipient names, and messages only if you
    want HeyClicky and its AI providers to process that data.
 
