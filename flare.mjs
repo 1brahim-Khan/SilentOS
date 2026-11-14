@@ -10,6 +10,7 @@ async function request(baseUrl, path, options = {}) {
   let result;
   try { result = JSON.parse(body); }
   catch { throw new Error(`FLARE returned non-JSON (HTTP ${response.status}). The tunnel may be unavailable.`); }
+  if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('FLARE returned an invalid response; expected a JSON object.');
   if (!response.ok) throw new Error(`FLARE HTTP ${response.status}: ${JSON.stringify(result.detail ?? result)}`);
   return result;
 }
@@ -22,6 +23,7 @@ export async function checkReady(baseUrl = DEFAULT_URL) {
 
 export async function transcribeVideo(videoBlob, baseUrl = DEFAULT_URL) {
   if (!(videoBlob instanceof Blob) || videoBlob.size === 0) throw new Error('Provide a nonempty video Blob.');
+  if (videoBlob.size > 50 * 1024 * 1024) throw new Error('Video must be no larger than 50 MiB.');
   if (!/^video\/(webm|mp4)(;|$)/.test(videoBlob.type)) throw new Error('Use MP4 or WebM video.');
   const form = new FormData();
   form.append('video', videoBlob, videoBlob.type.includes('webm') ? 'recording.webm' : 'recording.mp4');

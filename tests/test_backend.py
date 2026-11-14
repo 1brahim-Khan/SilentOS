@@ -12,10 +12,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import flare
 import server
+import room
 from commands import CommandStore
 
 
-class BackendTests(unittest.TestCase):
+class HTTPTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.httpd = server.ThreadingHTTPServer(('127.0.0.1', 0), server.Handler)
@@ -47,6 +48,8 @@ class BackendTests(unittest.TestCase):
         with response:
             return response.status, response.read()
 
+
+class BackendTests(HTTPTestCase):
     def test_camera_page_and_config(self):
         code, body = self.call('/')
         self.assertEqual(code, 200)
@@ -68,6 +71,7 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(json.loads(self.call('/api/commands',headers=headers)[1])['commands'][0]['id'], command['id'])
         self.assertEqual(self.call('/api/commands/cancel', json.dumps({'id':command['id']}).encode(), headers)[0],200)
         self.assertEqual(self.call('/api/commands/parse', b'[]', headers)[0],400)
+        self.assertEqual(self.call('/api/commands/cancel', b'{"id":{}}', headers)[0],400)
         self.assertEqual(self.call('/api/commands/parse', b'{}', {**headers,'Origin':'https://evil.example'})[0],403)
         self.assertEqual(self.call('/api/config', headers={'Host':'evil.example'})[0],403)
         for path in ['/command.js','/handoff.js']:
@@ -104,23 +108,22 @@ class BackendTests(unittest.TestCase):
                 flare.ready()
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-class RoomTests(BackendTests):
+class RoomTests(HTTPTestCase):
     def test_room_delivery_and_permissions(self):
         def post(path, payload):
-            return self.call(path, json.dumps(payload).encode(), {'Content-Type': 'application/json'})
+            return self.call(path, json.dumps(payload).encode(), {'Content-Type': 'application/json', 'X-SilentOS-Token': server.TOKEN})
         code, data = post('/api/room/create', {})
         self.assertEqual(code, 200)
         credentials = json.loads(data)
         room_id = credentials['room']
         speaker = credentials['speaker_token']
         listener = credentials['listener_token']
-        code, _ = post('/api/room/send', {'room': room_id, 'token': listener, 'text': 'wrong role'})
+        code, _ = post('/api/room/send', {'room': room_id, 'token': listener, 'text': 'wrong role', 'request_key':'bad'})
         self.assertEqual(code, 400)
-        code, data = post('/api/room/send', {'room': room_id, 'token': speaker, 'text': 'hello'})
+        code, data = post('/api/room/send', {'room': room_id, 'token': speaker, 'text': 'hello', 'request_key':'hello'})
         self.assertEqual(json.loads(data)['id'], 1)
+        code, retry = post('/api/room/send', {'room': room_id, 'token': speaker, 'text': 'hello', 'request_key':'hello'})
+        self.assertEqual(json.loads(retry)['id'],1)
         path = '/api/room/poll?room=' + room_id + '&role=listener&after=0'
         code, data = self.call(path, headers={'Authorization': 'Bearer ' + listener})
         self.assertEqual(json.loads(data)['messages'][0]['text'], 'hello')
@@ -130,3 +133,39 @@ class RoomTests(BackendTests):
         self.assertTrue(json.loads(data)['listener_connected'])
         self.assertEqual(self.call(path, headers={'Authorization': 'Bearer invalid'})[0], 403)
         self.assertEqual(self.call('/listen')[0], 200)
+
+    def test_room_idempotency_and_input_validation(self):
+        credentials = room.create()
+        args = (credentials['room'], credentials['speaker_token'], 'hello', 'request-one')
+        first = room.publish(*args)
+        self.assertEqual(room.publish(*args), first)
+        self.assertEqual(len(room.poll(credentials['room'], credentials['listener_token'], 'listener')['messages']), 1)
+        with self.assertRaisesRegex(ValueError, 'different text'):
+            room.publish(args[0], args[1], 'changed', args[3])
+        with self.assertRaises(ValueError):
+            room.acknowledge(credentials['room'],credentials['listener_token'],True)
+        with patch.object(room.time,'time',return_value=room.ROOMS[credentials['room']]['expires']+1):
+            with self.assertRaises(PermissionError):
+                room.poll(credentials['room'],credentials['listener_token'],'listener')
+
+    def test_room_local_access_and_listener_assets(self):
+        self.assertEqual(self.call('/api/room/create',b'{}',{'Content-Type':'application/json'})[0],403)
+        headers={'X-SilentOS-Token':server.TOKEN,'Content-Type':'application/json','Host':'evil.example'}
+        self.assertEqual(self.call('/api/room/create',b'{}',headers)[0],403)
+        credentials=room.create()
+        payload=json.dumps({'room':credentials['room'],'token':credentials['listener_token'],'id':0}).encode()
+        with patch.object(server.Handler,'local',return_value=False):
+            self.assertEqual(self.call('/api/config')[0],403)
+            self.assertEqual(self.call('/api/commands')[0],403)
+            self.assertEqual(self.call('/api/room/create',b'{}',headers)[0],403)
+            self.assertEqual(self.call('/api/transcribe',b'video',{'Content-Type':'video/webm'})[0],403)
+            self.assertEqual(self.call('/listen')[0],200)
+            self.assertEqual(self.call('/listener.js')[0],200)
+            self.assertEqual(self.call('/rooms.js')[0],403)
+            self.assertEqual(self.call('/api/room/ack',payload,{'Content-Type':'application/json'})[0],200)
+        self.assertFalse(json.loads(self.call('/api/config')[1])['lan_enabled'])
+        self.assertEqual(self.call('/rooms.js')[0],200)
+
+
+if __name__ == '__main__':
+    unittest.main()

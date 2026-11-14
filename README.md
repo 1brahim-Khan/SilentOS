@@ -1,184 +1,204 @@
-# Hosted FLARE client
+# SilentOS
 
-Public API verified November 14, 2026:
-`https://continually-priest-rural-moments.trycloudflare.com`
+SilentOS turns audio-free webcam recordings into editable text through a hosted
+FLARE lip-reading model. You can assemble several clips into one command, hand a
+reviewed message to HeyClicky, or share reviewed captions with a second device.
+These are separate flows: recording or receiving a transcript never sends a
+message by itself.
 
-The tunnel runs on Amarel within job 63918217 on gpuk010, independently of
-any laptop. The current allocation ends November 14 at 11:43 PM Eastern.
-Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart
-field `video`. This is a temporary API URL, not a hosted camera webpage.
-The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63918217.log`
-on Amarel. A new allocation and tunnel will be needed after the job ends.
+## Run locally
 
-## Windows quick start
+Python **3.9 or newer** is required. The application and its MCP connector use
+only the Python standard library. No local GPU, model download, API key, or extra
+Python packages are needed. Use a current browser; Chrome has been used for the
+local camera workflow.
 
-Double-click `Start-SilentOS.cmd` to start the local server and open your browser.
-Python 3 is required; no extra packages are needed. The server runs in the
-background. Its logs are `server.log` and `server-error.log`.
-
-From PowerShell, stop it with `./Start-SilentOS.ps1 -Stop`. If the temporary
-FLARE service expires, stop the app, then launch with the current address:
-
-```powershell
-./Start-SilentOS.ps1 -ApiUrl https://CURRENT-FLARE-HOST
-```
-
-The local interface works without the hosted service, but transcription requires
-a reachable FLARE model. The camera opens automatically after browser permission; press Start to record.
-
-The hosted model reported ready during setup on November 14, 2026. A real clip has not yet been transcribed with these clients. No local GPU, model installation, or Python packages are required.
-
-From the HackPrinceton workspace:
+On macOS or Linux, from this repository:
 
 ```sh
-python3 flare.py
-python3 flare.py /absolute/path/to/clip.mp4
-```
-
-Use a consented 2–5 second raw webcam recording, at most 60 seconds. MP4 or WebM; one face, front-facing and well lit. Do not crop or resize manually. For browser capture use `audio: false`. Uploading sends the video to the teammate's hosted service.
-
-The tunnel is temporary. Override it without editing code:
-
-```sh
-python3 flare.py --url https://NEW-HOST.trycloudflare.com /path/to/clip.webm
-```
-
-Alternatively set `FLARE_API_URL` for the Python client.
-
-For an existing browser application:
-
-```js
-import { transcribeVideo } from './flare.mjs';
-const result = await transcribeVideo(recordedBlob);
-// Display result.text for review before submitting to Deep Agents.
-```
-
-The browser helper accepts an optional second argument for a replacement URL. Browser calls require the server to permit your origin through CORS. Python success does not prove browser success. Do not manually set multipart Content-Type. Do not retry timed-out uploads automatically: the GPU may still be processing them.
-
-Check readiness once at session start. Transcription verifies a nonempty transcript and `audio_used: false`, without an extra readiness request. Clip duration is enforced by the server. Keep recordings under 60 seconds, show processing state, and prevent duplicate submissions in your UI. These client helpers do not record video or execute agent actions; the local camera page below records video.
-
-Next live check: upload a real clip, inspect transcript and timing, then test from the actual frontend origin. The guide reports a finite GPU allocation; reconfirm availability before a demo.
-
-## Local camera app
-
-```sh
-cd SilentOS
 python3 server.py
 ```
 
-Open http://localhost:8000, allow camera access when prompted, then press Start. The camera opens automatically and stays on between phrases until the page closes. The backend must run on your laptop for this localhost URL to work there. Use `--port 8001` if necessary. No additional dependencies.
+Open `http://localhost:8000`, allow camera access, and press **Start**. Use
+`--port 8001` if the port is occupied. Stop a foreground server with Ctrl+C.
+Restart the server and reload the page after pulling updates.
 
-The browser captures audio-free MP4/WebM clips with an eight-second default (3, 5, 6, 15, 30, and 60 seconds are also available) and sends raw video bodies to local `POST /api/transcribe`. The 60-second option stops about 150ms early to allow recorder shutdown within the API limit. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
+On Windows, double-click `Start-SilentOS.cmd`. The PowerShell launcher uses
+`python.exe`, runs the server in the background, and opens the browser. Logs are
+`server.log` and `server-error.log`. From PowerShell:
 
-Continue recording mode captures the next phrase while the previous upload processes. Finish phrase submits early and pauses recording without disabling the camera. Press Start to resume, including while a prior phrase is processing. There is one in-flight request and at most two waiting clips. Capture pauses when the queue is full and resumes when space opens; watch the Recording/Catching up status. Clips remain separate phrases; automatic cut points can split words. Pause (under Details) submits the final partial recording and keeps the camera ready; a request already processing can still return its transcript. No transcript triggers agent execution.
-
-Validation: the local backend returned the real transcript “set a reminder for tomorrow” from the supplied audio-free MP4, with `audio_used: false`. Python and browser script syntax checks passed. Live camera permissions and recording behavior still need browser testing. The tunnel and GPU allocation are temporary; update FLARE_API_URL before starting the server if they change. This server is intended for local development only, not public deployment.
-
-
-## Latency improvements
-
-Each result displays capture duration, queue wait, full browser request duration, start-to-text latency, upstream preprocessing/inference/server totals, local body receipt, and proxy timing. Proxy timing includes upstream request/upload and temporary-file handling; it is not a pure network measurement. On failure the session stops and unsent clips are discarded with a visible count. No automatic retry occurs. Use Check connection, then Start to resume. Stop submits the final partial clip and drains queued clips.
-
-Restart the Python server and reload the browser after updating. Simulated queue tests: `node tests/queue.cjs`. Actual webcam behavior and latency improvement still require a live browser test; no speedup has been measured for this revision.
-
-## Service recovery
-
-If the temporary tunnel expires, the app displays the configured endpoint and an actionable connection error. Launch against the replacement service with:
-
-```sh
-python3 flare-client/server.py --port 8001 --api-url https://CURRENT-FLARE-HOST
+```powershell
+./Start-SilentOS.ps1 -Stop
+./Start-SilentOS.ps1 -ApiUrl https://CURRENT-FLARE-HOST -Port 8000
 ```
 
-The URL must be the FLARE HTTP API exposing `/ready` and `/transcribe`, not an AWS notebook login URL. Without a reachable model service, the local page and camera can load but transcription cannot run. There is no mock transcription fallback.
+The Windows launcher has not been exercised on this Mac.
 
-Port conflicts now show a concise recovery message. Finish phrase is disabled while a recorder is stopping, connection checks cannot race active recording, disconnected cameras require re-enabling, and clips shorter than half a second are skipped.
+## Record and assemble a command
 
-Regression checks:
+1. Press **Start** and mouth a phrase facing the camera in good light.
+2. **Finish phrase** submits the current clip and pauses capture. **Start** adds
+   another clip to the same command. Continuous mode records the next clip while
+   an earlier clip is processing, subject to queue capacity.
+3. **Finish command** stops capture and waits for outstanding transcripts. Review
+   or edit **Current command** when it becomes ready.
+4. Choose a destination below, or copy the full transcript. **New command** starts
+   a separate instruction without clearing transcript history.
+
+FLARE text is appended both to transcript history and to the current assembly.
+Edits to **Transcript** affect the copyable history; edits to **Current command**
+affect the handoff and room caption. Clips are joined in order with a space.
+Missing words, split words, punctuation, and overlaps are not guessed or repaired.
+Ready means all recorded clips returned, not that the words or intent are correct.
+
+The clip choices are 3, 5, 6, 8 (default), 15, 30, and 60 seconds. A 60-second clip
+stops about 150ms early to leave time for recorder shutdown. Clips shorter than
+half a second are skipped; empty or over-limit clips fail. There is one upload in
+flight and at most two waiting clips. Capture pauses when the queue is full.
+
+Recording/transcription failures mark an unfinished command incomplete and discard
+unsent clips without retrying uploads. Use **New command** and repeat the
+instruction. A late result can still appear in history, but cannot make an
+incomplete command ready. An idle camera disconnect does not invalidate a command
+that already finished.
+
+The mirrored preview uses no microphone audio. Captions arrive after a whole clip
+is uploaded and processed; this is not streaming word-by-word transcription. The
+Details panel shows timing and connection information. Assemblies live in browser
+memory and are lost on reload.
+
+## HeyClicky message handoff
+
+For example:
+
+> Send Alex on WhatsApp saying I'll be there in ten minutes.
+
+After **Finish command**, the Message handoff panel extracts the app, recipient,
+and exact message. The supported apps are iMessage, WhatsApp, and SMS. Explicit
+phrasing with `saying` or a colon is required; otherwise fill in the fields
+manually. A parsed name is not a verified contact identity.
+
+Choose **Prepare draft only** (default) or **Send once through HeyClicky**, then
+click **Queue for HeyClicky**. The opt-in automatic queue checkbox queues only
+successfully parsed completed commands and resets to off on page reload. Queueing
+stores the instruction locally; it does not start an agent or open a messaging
+app. A connected **active HeyClicky agent job** must claim the command.
+
+The SQLite queue survives restarts, uses atomic claims and idempotency keys, and
+never automatically replays claimed or uncertain work. Draft mode does not
+authorize Send. HeyClicky's own permissions and confirmation rules still apply.
+See [HEYCLICKY.md](HEYCLICKY.md) for connector setup, supported phrasing, recovery,
+and the live validation record.
+
+## Two-device captions and optional speech
+
+This is a one-way caption demo. A speaker reviews text on the Mac; a listener
+receives it and can enable browser text-to-speech. It does not provide live video,
+return audio, a telephone call, or automatic caption publication.
+
+For two devices on a trusted LAN or hotspot that permits device-to-device traffic:
 
 ```sh
-node tests/queue.cjs
-python3 -m unittest discover -s tests -p 'test_*.py'
+python3 server.py --lan
 ```
 
-Backend tests use simulated upstream responses. Live model accuracy and actual camera permissions require an available API and a browser test.
+Open `http://localhost:8000` on the speaker's Mac, because camera access requires
+localhost. Under **Two-device conversation**, create a room, enter the Mac's LAN
+IPv4 address, copy the listener link, and share it privately. Find the address in
+Wi-Fi settings or use `ipconfig getifaddr en0` on macOS (the interface may differ).
+The UI explains when LAN sharing is off; it is off by default.
 
-## SilentOS interface
+The listener opens the link on the second device and can tap **Enable voice** and
+**Test voice**. No listener camera or microphone permission is needed. Invitation
+credentials stay in that browser tab's session so reloading continues to work.
+When session storage is blocked, the invitation stays in the URL fragment instead.
 
-The camera opens on page load, with audio disabled; capture begins only on Start.
-The latest completed phrase appears over the video; the full transcript is editable
-in the side panel. Start rechecks service readiness after an error without a reload.
-Prism Gradient uses Componentry’s WebGL shader adapted to plain JavaScript
-(`static/prism.js`, MIT attribution in `static/COMPONENTRY-LICENSE.txt`), with
-reduced-motion support and a CSS fallback when WebGL2 is unavailable.
+On the speaker, finish and review a command, then click **Send reviewed command
+to listener**. Captions are limited to 2,000 characters. Network retries reuse the
+same caption and request key, avoiding duplicates. To send a separate caption,
+use **New command**. The receipt means text was fetched, not that speech played.
+Messages received before voice is enabled are shown as text only.
 
-## Command assembly
+Rooms use HTTP polling, expire after one hour, and are held only in server memory
+(up to 20 rooms and 200 captions per room). A restart clears all rooms. Anyone with
+the listener link can read that room's captions. This development demo uses
+unencrypted HTTP: use a trusted private network and do not expose it to the
+internet. Remote clients can only load the listener and read/acknowledge captions
+with its token. Camera uploads, command history, and room publication stay local.
+A real second-device connection and audio playback still need manual validation.
 
-Press Start and record one instruction across multiple clips. The Current command
-panel joins returned clips in capture order with a space; it preserves wording,
-punctuation, and repetitions rather than guessing missing or overlapping words.
-Finish phrase (or Pause) pauses capture without closing the command. Start adds
-more clips to that same draft. Finish command stops capture and waits for the
-last recording and all queued uploads before marking the text Ready for review.
-With Continuous unchecked, each clip pauses capture but still belongs to the
-current command until Finish command is pressed.
+## Hosted FLARE service
 
-Review or edit the command while capture and uploads are idle. New command clears
-the current command without clearing transcript history. Recording, camera, or
-transcription failures mark the command Incomplete and require New command before
-recording another instruction. Clips shorter than half a second are still skipped.
-Commands live only in browser memory and are lost on reload. Ready means all clips
-returned, not that the instruction is semantically complete or correctly recognized.
-Finished commands now feed a parser and persistent local handoff queue; see below.
-The application itself does not send messages.
+The current default endpoint is:
 
-Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
-`python3 -m unittest discover -s tests -p 'test_*.py'`.
+`https://continually-priest-rural-moments.trycloudflare.com`
 
-## Two-device caption and voice demo
+Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart field
+`video`. The local backend forwards clips, validates a nonempty transcript and
+`audio_used: false`, then removes temporary video files. Uploading sends your clip
+to the team's hosted service. This repository contains the clients and local
+proxy, not the remote model server or its deployment source.
 
-This is a one-way, turn-based conversation demo: the speaker records and reviews text on the Mac, and a listener sees captions and can use their browser's text-to-speech. It does **not** yet provide live video, microphone return audio, automatic transcript stitching, or a telephone call. Room transport uses short HTTP polling, not WebSockets. A working FLARE endpoint is required for transcription; a message can also be typed into Current command and finished for a text-only room test.
+On November 14, 2026 the endpoint reported ready and `max_clip_seconds: 60`. Project
+notes report an Amarel GPU allocation ending November 14 at **11:43 PM Eastern**;
+that allocation and its temporary tunnel must be renewed by the model host. A
+client-side change cannot revive an expired model service.
 
-On the speaker's Mac, connect both devices to a trusted LAN/hotspot that permits device-to-device traffic, then run:
+Override the address without changing code:
 
 ```sh
-python3 server.py --lan --api-url https://CURRENT-FLARE-HOST
+python3 server.py --api-url https://CURRENT-FLARE-HOST
 ```
 
-Open `http://localhost:8000` on the Mac (localhost is needed for camera permission). Create a room in **Two-device conversation**. Find the Mac's LAN IPv4 address in Wi-Fi settings, or run `ipconfig getifaddr en0` on macOS (your active interface might differ). Enter it in Host LAN IP, copy the generated link, and share it privately with the listener. The listener opens that link on the second device and taps **Enable voice** and **Test voice**. The listener page needs neither camera nor microphone permission.
+Or set `FLARE_API_URL`. A replacement must expose the FLARE HTTP API; a notebook
+login URL is not a substitute. Without it the local UI works, but transcription
+does not. Timeouts are not automatically retried because inference may still be
+running upstream.
 
-On the speaker, record a phrase, click **Finish command**, review/edit the command, and click **Send reviewed command to listener**. The status indicates that the listener fetched the message; it does not prove audio played. Browser voices and autoplay policies vary: test the actual listener device. Captions arriving before voice is enabled are shown as text only. The browser queues spoken messages in order.
+The local upload limit is **50 MiB**. The hosted service currently reports a
+60-second duration limit. Longer recordings can hit the upload or processing
+limits even when their duration is valid. Existing project notes report a real
+60-second capacity test; that does not establish long-form recognition accuracy.
+The upstream preprocessing/model changes are managed outside this repository.
 
-Rooms expire after one hour, are held only in server memory, and disappear on restart. Listener links grant access to captions to anyone who holds them; create a fresh room if a link leaks. This LAN demo uses **unencrypted HTTP**, so use it only on a trusted private network; it is not suitable for sensitive conversations or public exposure. Camera/video upload and room creation are restricted to the server machine. The listener can only read and acknowledge captions, not submit speaker messages. Messages are retained in memory until room expiry/restart (maximum 200 per room). A receipt means the listener page received text, not that speech played. For remote devices or HTTPS on both phones, use a properly authenticated HTTPS deployment; do not expose the development server directly to the internet.
+The standalone Python and JavaScript helpers are also available:
 
-If the listener cannot connect, check the IP address, server's `--lan` flag, firewall permissions, and client isolation on Wi-Fi. If transcription fails, get the current FLARE API URL; an expired tunnel cannot be fixed by the room. The room and UI tests are automated, but a real second device and actual audio playback still require manual validation.
-## Message parsing and HeyClicky connector
+```sh
+python3 flare.py                       # Check readiness
+python3 flare.py /absolute/path/clip.mp4
+python3 flare.py --url https://CURRENT-FLARE-HOST /absolute/path/clip.webm
+```
 
-After finishing a command, the Message handoff panel extracts explicit instructions
-such as `Send Alex on WhatsApp saying I will be there soon`. Review app, recipient,
-and exact message, choose draft or send mode, then queue it. Optional automatic
-queueing is off by default. The SQLite queue survives restarts and the local MCP
-connector supplies atomic claim and result-reporting tools for HeyClicky.
+```js
+import { transcribeVideo } from './flare.mjs';
+const result = await transcribeVideo(recordedBlob); // optional second arg: API URL
+```
 
-See [HEYCLICKY.md](HEYCLICKY.md) for setup, supported phrasing, draft testing,
-recovery, and privacy. A connected **active** HeyClicky job is still needed; no
-automatic external wakeup or live message sending has been verified. Queueing
-alone never opens a messaging app or sends. End-to-end tests are still required.
+Use consented raw MP4/WebM recordings with one front-facing face, preferably
+2–5 seconds. Do not manually crop/resize. Browser capture should set `audio: false`.
+Direct browser calls to the hosted helper require appropriate upstream CORS;
+Python success alone does not prove browser access.
 
-## Longer recordings
+## Run checks and understand coverage
 
-Eight seconds remains the default; 15, 30, and 60 seconds are also available.
-Each clip is uploaded in one request and transcribed as a whole, without browser
-segmentation. Captions arrive after the entire clip is processed. Continuous
-starts another clip automatically; uncheck it to stop after one clip.
-Finish phrase submits early and pauses.
+Application runtime: Python 3.9+. Regression tests additionally need Node.js 22+.
+From the repository:
 
-The hosted preprocessing duration limit is 60 seconds, with a 3,601-source-frame
-budget (up to 60 FPS). Model dataset filtering and cropping limits are 1,502
-frames to preserve a full minute resampled to 25 FPS. Input-frame preservation
-is checked before inference. The existing 50 MiB local upload limit still applies.
-The backend update is deployed in the existing Amarel model project; its source
-is managed separately from this client repository. A real 60-second repeated
-public-footage upload preserved all 1,500 frames and returned a transcript through
-the local proxy and public tunnel. This checks capacity, not long-form accuracy.
+```sh
+python3 run_checks.py
+```
 
-Regression: `node tests/long_capture.cjs`.
+The runner executes every top-level JavaScript test and all Python unit tests.
+They cover clip queues and duration, command boundaries, readiness races, parser
+failures, handoff retries, SQLite concurrency/restarts, MCP stdio, local API access,
+room publication/receipts, invitation reloads, and client response validation.
+They never upload a real camera clip or send a real message.
+
+A live HeyClicky agent has read and claimed a command, prepared an iMessage draft,
+and reported the outcome. The user then sent that draft manually. Continuous
+pickup, automated sends, WhatsApp, SMS, a complete fresh FLARE-to-message run,
+second-device speech, and Windows startup remain unverified. See [AUDIT.md](AUDIT.md)
+for the latest review findings and checks.
+
+The prism background is adapted from Componentry under its MIT license; attribution
+is retained in `static/COMPONENTRY-LICENSE.txt` and `static/prism.js`.

@@ -90,6 +90,14 @@ class CommandTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.enqueue(**extra)
 
+    def test_malformed_command_ids_are_validation_errors(self):
+        for bad in [None, {}, [], '']:
+            for operation in [self.store.cancel, self.store.resolve_uncertain]:
+                with self.assertRaises(ValueError):
+                    operation(bad)
+            with self.assertRaises(ValueError):
+                self.store.report(bad,'token','blocked','not attempted')
+
     def test_mcp_protocol_and_errors(self):
         messages = [
             {'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18'}},

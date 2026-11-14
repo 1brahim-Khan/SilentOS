@@ -37,6 +37,9 @@ For example (replace with your real path):
 /usr/bin/python3 /absolute/path/to/SilentOS/heyclicky_mcp.py
 ```
 
+After updating connector code, restart/reconnect the local connector in HeyClicky
+so an existing process loads the new code and instructions.
+
 The connector and server must use the **same checkout and database**. By default
 it is `.silent/commands.sqlite3` beside these scripts. If setting
 `SILENTOS_STATE_DIR`, set it identically for both processes, or pass the connector

@@ -19,7 +19,7 @@ def create():
         room = secrets.token_urlsafe(18)
         speaker, listener = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
         ROOMS[room] = {'speaker': speaker, 'listener': listener, 'expires': now + TTL,
-                       'messages': [], 'listener_seen': 0, 'ack': 0}
+                       'messages': [], 'requests': {}, 'listener_seen': 0, 'ack': 0}
     return {'room': room, 'speaker_token': speaker, 'listener_token': listener}
 
 
@@ -30,15 +30,24 @@ def access(room_id, token, role):
     return room
 
 
-def publish(room_id, token, text):
+def publish(room_id, token, text, request_key):
     if not isinstance(text, str) or not text.strip() or len(text) > 2000:
         raise ValueError('Message must contain 1–2000 characters.')
+    if not isinstance(request_key, str) or not 1 <= len(request_key) <= 100:
+        raise ValueError('A request key of 1–100 characters is required.')
+    text = text.strip()
     with LOCK:
         room = access(room_id, token, 'speaker')
+        previous = room['requests'].get(request_key)
+        if previous:
+            if previous['text'] != text:
+                raise ValueError('Request key already belongs to different text.')
+            return previous
         if len(room['messages']) >= 200:
             raise ValueError('Room message limit reached. Create a new room.')
-        message = {'id': len(room['messages']) + 1, 'text': text.strip()}
+        message = {'id': len(room['messages']) + 1, 'text': text}
         room['messages'].append(message)
+        room['requests'][request_key] = message
         return message
 
 
@@ -54,6 +63,6 @@ def poll(room_id, token, role, after=0):
 def acknowledge(room_id, token, message_id):
     with LOCK:
         room = access(room_id, token, 'listener')
-        if not isinstance(message_id, int) or not 0 <= message_id <= len(room['messages']):
+        if type(message_id) is not int or not 0 <= message_id <= len(room['messages']):
             raise ValueError('Invalid message ID.')
         room['ack'] = max(room['ack'], message_id)

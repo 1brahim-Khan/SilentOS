@@ -15,7 +15,9 @@ Process one command at a time. Resolve the exact recipient in the specified app;
 if missing or ambiguous, report blocked without sending. Use Apple Messages for
 iMessage/SMS (SMS needs iPhone forwarding), WhatsApp desktop or Web for WhatsApp.
 Do not silently switch channels, recipients, or change the message wording.
-For draft mode, prepare the conversation and message but DO NOT press Send.
+Never overwrite an existing nonempty draft; report blocked instead.
+For draft mode, prepare the conversation and message but DO NOT press Send or
+Return in the composer. Leave the exact text unsent for the user to review.
 For send mode, follow the host's permission policy; verify the conversation and
 exact text before sending once. Record sent only after observing the app accept
 the outgoing message; this is not proof of delivery. If send success is uncertain,
@@ -126,6 +128,7 @@ class CommandStore:
             return self.public(db.execute('SELECT * FROM commands WHERE id=?', (row['id'],)).fetchone(), True)
 
     def report(self, command_id, token, outcome, detail):
+        command_id = clean(command_id, 'Command ID', 100)
         if outcome not in ('prepared', 'sent', 'blocked', 'uncertain'):
             raise ValueError('Outcome must be prepared, sent, blocked, or uncertain')
         detail = clean(detail, 'Result detail', 1000)
@@ -146,6 +149,7 @@ class CommandStore:
             return self.public(db.execute('SELECT * FROM commands WHERE id=?', (command_id,)).fetchone())
 
     def cancel(self, command_id):
+        command_id = clean(command_id, 'Command ID', 100)
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT * FROM commands WHERE id=?', (command_id,)).fetchone()
@@ -155,6 +159,7 @@ class CommandStore:
             return self.public(db.execute('SELECT * FROM commands WHERE id=?', (command_id,)).fetchone())
 
     def resolve_uncertain(self, command_id):
+        command_id = clean(command_id, 'Command ID', 100)
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT * FROM commands WHERE id=?', (command_id,)).fetchone()

@@ -11,7 +11,6 @@ import urllib.request
 import urllib.parse
 import uuid
 
-#DEFAULT_URL = "https://frames-tickets-follow-idol.trycloudflare.com"
 DEFAULT_URL = "https://continually-priest-rural-moments.trycloudflare.com"
 
 

@@ -105,6 +105,8 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == '/listen':
             return self.send(200, (PAGE.parent / 'listen.html').read_bytes(), 'text/html; charset=utf-8')
+        if parsed.path == '/listener.js':
+            return self.send(200, (PAGE.parent / 'listener.js').read_bytes(), 'text/javascript; charset=utf-8')
         if parsed.path == '/api/room/poll':
             try:
                 q = parse_qs(parsed.query)
@@ -127,10 +129,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send(200, (PAGE.parent / 'command.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/handoff.js':
             self.send(200, (PAGE.parent / 'handoff.js').read_bytes(), 'text/javascript; charset=utf-8')
+        elif self.path == '/rooms.js':
+            self.send(200, (PAGE.parent / 'rooms.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/prism.js':
             self.send(200, (PAGE.parent / 'prism.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/api/config':
-            self.send(200, {'api_url': BASE_URL, 'session_token': TOKEN, 'connector_command': shlex.join([sys.executable, str(PAGE.parent.parent / 'heyclicky_mcp.py')])})
+            self.send(200, {'api_url': BASE_URL, 'session_token': TOKEN,
+                            'lan_enabled': self.server.server_address[0] not in {'127.0.0.1', '::1'},
+                            'connector_command': shlex.join([sys.executable, str(PAGE.parent.parent / 'heyclicky_mcp.py')])})
         elif self.path == '/api/commands':
             if self.command_request():
                 try:
@@ -151,7 +157,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in {'/api/room/create', '/api/room/send', '/api/room/ack'}:
             if self.path != '/api/room/ack' and not self.local():
                 return self.send(403, {'error': 'Speaker must use localhost.'})
+            if self.path != '/api/room/ack' and (not self.local_request() or not self.command_request()):
+                return
             try:
+                if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                    raise ValueError('Expected application/json')
                 size = int(self.headers.get('Content-Length', '0'))
                 if not 0 < size <= 8192: raise ValueError('Invalid request size.')
                 data = json.loads(self.rfile.read(size))
@@ -159,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
                 if self.path == '/api/room/create':
                     result = room.create()
                 elif self.path == '/api/room/send':
-                    result = room.publish(data.get('room', ''), data.get('token', ''), data.get('text'))
+                    result = room.publish(data.get('room', ''), data.get('token', ''), data.get('text'), data.get('request_key'))
                 else:
                     room.acknowledge(data.get('room', ''), data.get('token', ''), data.get('id'))
                     result = {'ok': True}

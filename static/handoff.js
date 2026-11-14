@@ -1,9 +1,9 @@
 // The browser queues only finalized commands. The connector never runs from here.
 (()=>{
  const el=id=>document.getElementById(id);
- const config=fetch('/api/config').then(async r=>{if(!r.ok)throw new Error('Cannot read local configuration');return r.json();});
+ const config=fetch('/api/config',{signal:AbortSignal.timeout(15000)}).then(async r=>{if(!r.ok)throw new Error('Cannot read local configuration');return r.json();});
  const states=new WeakMap();
- let current=null,revision=0,parsing=false,submitting=false,parseTimer;
+ let current=null,revision=0,parsing=false,submitting=false,parseTimer,refreshVersion=0,lastQueueSnapshot; config.catch(()=>{});
  async function request(path,data){
   const c=await config;
   const r=await fetch(path,{method:data===undefined?'GET':'POST',headers:{'X-SilentOS-Token':c.session_token,'Content-Type':'application/json'},...(data===undefined?{}:{body:JSON.stringify(data)}),signal:AbortSignal.timeout(15000)});
@@ -34,7 +34,7 @@
   if(!state){state={text:null,key:crypto.randomUUID(),queued:false,attempted:false};states.set(command,state);}
   if(command.state==='ready'&&state.text!==command.text&&!state.queued){
    state.text=command.text;const version=++revision;parsing=true;
-   clearTimeout(parseTimer);el('handoffStatus').textContent='Extracting app, recipient, and message…';
+   clearTimeout(parseTimer);el('messageRecipient').value='';el('messageBody').value='';el('handoffStatus').textContent='Extracting app, recipient, and message…';
    parseTimer=setTimeout(()=>parse(command,command.text,version),200);
   }else if(command.state!=='ready'){
    ++revision;clearTimeout(parseTimer);parsing=false;state.text=null;
@@ -55,11 +55,13 @@
   }catch(e){
    // Keep payload frozen: retry must not create a second command after a lost response.
    if(current===command)el('handoffStatus').textContent=e.message+' Retry queues the same request. Use New command to change it.';
-  }finally{submitting=false;render();if(state.payload&&!state.queued)fieldsLocked(true);}
+  }finally{submitting=false;render();if(current===command&&state.payload&&!state.queued)fieldsLocked(true);}
  }
  async function refresh(){
+  const version=++refreshVersion;
   try{
-   const {commands}=await request('/api/commands');el('commandQueue').replaceChildren();
+   const {commands}=await request('/api/commands');if(version!==refreshVersion)return;
+   const snapshot=JSON.stringify(commands);if(snapshot===lastQueueSnapshot)return;lastQueueSnapshot=snapshot;el('commandQueue').replaceChildren();
    for(const c of commands){
     const item=document.createElement('li');const text=document.createElement('span');
     text.textContent=`${c.status} · ${c.mode} · ${c.app} → ${c.recipient}: ${c.message}${c.detail?' — '+c.detail:''}`;item.append(text);
@@ -76,7 +78,7 @@
    }
    if(!commands.length){const li=document.createElement('li');li.textContent='No commands queued.';el('commandQueue').append(li);}
    el('queueError').textContent='';
-  }catch(e){el('queueError').textContent=e.message;}
+  }catch(e){if(version===refreshVersion)el('queueError').textContent=e.message;}
  }
  el('queueCommand').onclick=enqueue;el('refreshCommands').onclick=refresh;
  for(const id of ['messageApp','messageRecipient','messageBody','messageMode'])el(id).oninput=()=>render();
