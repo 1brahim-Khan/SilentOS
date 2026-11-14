@@ -68,3 +68,13 @@ sent that draft afterward. Automated sending was not validated.
 - This is a local/trusted-LAN development application. Local queue claims avoid
   automatic redelivery, but cannot guarantee exactly-once delivery through another
   application's UI or independently verify an agent's claimed send result.
+
+## Subsequent task routing update
+
+The messaging-to-HeyClicky route described in the original audit has been replaced:
+general task text now reaches HeyClicky through the SilentOS HTTP API and Photon
+2.0 handles messages. See HEYCLICKY.md and PHOTON.md for current behavior. The
+updated local check run passes 8 JavaScript suites and 24 Python tests, including
+a real MCP subprocess using the HTTP task API, provider-isolated claims, legacy
+queue migration, and simulated Photon contract/uncertainty checks. Photon account
+setup and real sends remain unverified.

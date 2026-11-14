@@ -2,7 +2,6 @@ from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -114,19 +113,6 @@ class CommandTests(unittest.TestCase):
         self.assertTrue(replies[3]['result']['isError'])
         self.assertEqual(replies[4]['error']['code'],-32601)
 
-    def test_real_stdio_process_reads_shared_queue(self):
-        self.enqueue(mode='send')
-        requests=[{'jsonrpc':'2.0','id':1,'method':'initialize','params':{}},
-                  {'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'silentos_claim_next_command','arguments':{}}}]
-        proc=subprocess.run([sys.executable,str(Path(__file__).resolve().parents[1]/'heyclicky_mcp.py'),'--database',str(self.path)],
-                            input='\n'.join(json.dumps(r) for r in requests)+'\n',capture_output=True,text=True,timeout=5)
-        self.assertEqual(proc.returncode,0,proc.stderr)
-        replies=[json.loads(line) for line in proc.stdout.splitlines()]
-        c=json.loads(replies[1]['result']['content'][0]['text'])['command']
-        self.assertEqual(c['status'],'claimed')
-        self.assertEqual(c['mode'],'send')
-        self.store.report(c['id'],c['claim_token'],'uncertain','app closed during send; no retry')
-        self.assertIsNone(self.store.claim())
 
 
 if __name__ == '__main__':

@@ -67,28 +67,30 @@ is uploaded and processed; this is not streaming word-by-word transcription. The
 Details panel shows timing and connection information. Assemblies live in browser
 memory and are lost on reload.
 
-## HeyClicky message handoff
+## Tasks: HeyClicky and Photon
 
-For example:
+Record and finish a command, or edit/select text in **Transcript** and click
+**Use transcript / selection as task**. SilentOS routes the reviewed input:
 
-> Send Alex on WhatsApp saying I'll be there in ten minutes.
+- **General tasks → HeyClicky**, as text through the local SilentOS HTTP API.
+  Examples: open a file, find a presentation, or perform supported browser work.
+  Choose execute or plan-only mode. A connected active HeyClicky agent must pull
+  the task; the app already supports typed input and needs no microphone conversion.
+- **Messages → Photon 2.0**, through a separate local worker. Specify app, recipient,
+  and exact message. Draft mode saves a local preview; send mode uses configured
+  Photon sender/contact IDs. No personal messaging account is assumed.
 
-After **Finish command**, the Message handoff panel extracts the app, recipient,
-and exact message. The supported apps are iMessage, WhatsApp, and SMS. Explicit
-phrasing with `saying` or a colon is required; otherwise fill in the fields
-manually. A parsed name is not a verified contact identity.
+Automatic routing uses explicit message phrasing, such as `Send Alex on WhatsApp
+saying I'll be there soon`. Incomplete messaging requests remain for review. The
+handoff type selector and editable fields support corrections. The opt-in automatic
+queue checkbox remains off on reload. It queues finished tasks; it does not start
+a HeyClicky job, bypass approvals, or invent destinations.
 
-Choose **Prepare draft only** (default) or **Send once through HeyClicky**, then
-click **Queue for HeyClicky**. The opt-in automatic queue checkbox queues only
-successfully parsed completed commands and resets to off on page reload. Queueing
-stores the instruction locally; it does not start an agent or open a messaging
-app. A connected **active HeyClicky agent job** must claim the command.
-
-The SQLite queue survives restarts, uses atomic claims and idempotency keys, and
-never automatically replays claimed or uncertain work. Draft mode does not
-authorize Send. HeyClicky's own permissions and confirmation rules still apply.
-See [HEYCLICKY.md](HEYCLICKY.md) for connector setup, supported phrasing, recovery,
-and the live validation record.
+The persistent queue uses atomic per-provider claims and request keys. Old queue
+items without a provider are retained as legacy and never automatically executed.
+See [HEYCLICKY.md](HEYCLICKY.md) for the text API/worker and [PHOTON.md](PHOTON.md)
+for account configuration and messaging constraints. Photon is not set up on this
+laptop yet, so real sends remain blocked; no Photon send has been verified.
 
 ## Two-device captions and optional speech
 

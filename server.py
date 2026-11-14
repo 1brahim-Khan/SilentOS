@@ -14,7 +14,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from flare import DEFAULT_URL, ready, transcribe
 import room
-from commands import CommandStore, default_path, parse_command
+import photon
+from commands import CommandStore, default_path, parse_command, route_task
 
 BASE_URL = os.environ.get('FLARE_API_URL', DEFAULT_URL)
 BUSY = threading.Lock()
@@ -60,9 +61,24 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(size))
             if not isinstance(data, dict):
                 raise ValueError('Expected a JSON object')
-            if self.path == '/api/commands/parse':
+            if self.path == '/api/tasks/parse':
+                result = route_task(data.get('text'), data.get('kind','auto'))
+            elif self.path == '/api/tasks':
+                route = route_task(data.get('text'), data.get('kind','auto'))
+                if not route['parsed']:
+                    raise ValueError(route['reason'])
+                result = command_store().enqueue({**route,'transcript':data['text'],
+                    'request_key':data.get('request_key'),'mode':data.get('mode','execute' if route['kind']=='task' else 'draft')})
+            elif self.path == '/api/tasks/next':
+                result = {'command':command_store().claim('heyclicky')}
+            elif self.path == '/api/tasks/result':
+                item=command_store().get(data.get('id'))
+                if not item or item['provider']!='heyclicky':
+                    raise ValueError('The HeyClicky result API only accepts general tasks')
+                result = command_store().report(data.get('id'),data.get('claim_token'),data.get('outcome'),data.get('detail'))
+            elif self.path == '/api/commands/parse':
                 result = parse_command(data.get('text'))
-            elif self.path == '/api/commands':
+            elif self.path in ('/api/commands','/api/tasks'):
                 result = command_store().enqueue(data)
             elif self.path == '/api/commands/cancel':
                 result = command_store().cancel(data.get('id'))
@@ -135,12 +151,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send(200, (PAGE.parent / 'prism.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/api/config':
             self.send(200, {'api_url': BASE_URL, 'session_token': TOKEN,
+                            'photon': photon.status(),
                             'lan_enabled': self.server.server_address[0] not in {'127.0.0.1', '::1'},
-                            'connector_command': shlex.join([sys.executable, str(PAGE.parent.parent / 'heyclicky_mcp.py')])})
-        elif self.path == '/api/commands':
+                            'connector_command': shlex.join([sys.executable, str(PAGE.parent.parent / 'heyclicky_mcp.py'), '--api-url', f'http://127.0.0.1:{self.server.server_port}'])})
+        elif self.path in ('/api/commands','/api/tasks'):
             if self.command_request():
                 try:
-                    self.send(200, {'commands': command_store().list()})
+                    items=command_store().list()
+                    if self.path=='/api/tasks': items=[item for item in items if item['provider']=='heyclicky']
+                    self.send(200, {'commands': items})
                 except Exception:
                     self.send(500, {'error': 'Local command storage unavailable'})
         elif self.path == '/api/ready':
@@ -180,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(403, {'error': 'Transcription is available only on localhost.'})
         if not self.local_request():
             return
-        if self.path == '/api/commands' or self.path.startswith('/api/commands/'):
+        if self.path in ('/api/commands','/api/tasks') or self.path.startswith(('/api/commands/','/api/tasks/')):
             self.command_post()
             return
         if self.path != '/api/transcribe':
@@ -242,7 +261,12 @@ if __name__ == '__main__':
         raise
     print(f'Camera app: http://localhost:{args.port}', flush=True)
     if args.lan: print('LAN listener enabled. Share only on a trusted network.', flush=True)
+    stop_worker = threading.Event()
+    photon.start_worker(command_store(),stop_worker)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        pass
+    finally:
+        stop_worker.set()
         server.server_close()

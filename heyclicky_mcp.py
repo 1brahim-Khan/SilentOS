@@ -3,7 +3,8 @@ import argparse
 import json
 import sys
 import time
-from commands import CommandStore, default_path, INSTRUCTIONS
+from commands import INSTRUCTIONS
+from silentos_api import SilentOSClient
 
 
 def schema(properties=None, required=None):
@@ -12,12 +13,12 @@ def schema(properties=None, required=None):
 
 TEXT = {'type': 'string', 'minLength': 1}
 TOOLS = [
-    {'name': 'silentos_list_commands', 'description': 'List up to 50 recent commands and their actual queue status. Does not claim or send anything.',
+    {'name': 'silentos_list_commands', 'description': 'Read general task text and status from the SilentOS HTTP API. Photon messages are excluded. Does not execute anything.',
      'inputSchema': schema(), 'annotations': {'readOnlyHint': True}},
-    {'name': 'silentos_claim_next_command', 'description': 'Atomically claim one queued command. Returns null if empty or another command is already claimed. Never reclaims old work. Optional long poll up to 20 seconds. Follow execution_instructions, mode, and host approval policy.',
+    {'name': 'silentos_claim_next_command', 'description': 'Atomically claim one general task from the SilentOS HTTP API. Returns null if empty or another command is already claimed. Never reclaims old work. Optional long poll up to 20 seconds. Follow execution_instructions, mode, and host approval policy.',
      'inputSchema': schema({'wait_seconds': {'type': 'integer', 'minimum': 0, 'maximum': 20}})},
-    {'name': 'silentos_report_result', 'description': 'Report what you observed after handling a claimed command. prepared=unsent draft, sent=app accepted outgoing message (not delivered), blocked=no send attempted, uncertain=send may have happened. Never retry uncertain sends.',
-     'inputSchema': schema({'id': TEXT, 'claim_token': TEXT, 'outcome': {'type': 'string', 'enum': ['prepared','sent','blocked','uncertain']},
+    {'name': 'silentos_report_result', 'description': 'Report what you observed after handling a claimed command. completed=verified general task result, reviewed=plan only, blocked=not attempted, uncertain=effects cannot be verified. Messaging is handled separately by Photon.',
+     'inputSchema': schema({'id': TEXT, 'claim_token': TEXT, 'outcome': {'type': 'string', 'enum': ['completed','reviewed','blocked','uncertain']},
                             'detail': {'type': 'string', 'minLength': 1, 'maxLength': 1000}}, ['id','claim_token','outcome','detail'])}
 ]
 
@@ -74,7 +75,7 @@ def serve(store, source, target):
                         version = params.get('protocolVersion')
                         version = version if version in ('2024-11-05','2025-03-26','2025-06-18') else '2025-06-18'
                         response['result'] = {'protocolVersion': version, 'capabilities': {'tools': {}},
-                                              'serverInfo': {'name':'silentos','version':'1.0.0'}, 'instructions': INSTRUCTIONS}
+                                              'serverInfo': {'name':'silentos','version':'2.0.0'}, 'instructions': INSTRUCTIONS}
                         initialized = True
                     elif method == 'ping':
                         response['result'] = {}
@@ -100,6 +101,6 @@ def serve(store, source, target):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--database', default=str(default_path()), help='Same SQLite database used by server.py')
+    parser.add_argument('--api-url', default=None, help='SilentOS localhost API origin; defaults to SILENTOS_API_URL or http://127.0.0.1:8000')
     args = parser.parse_args()
-    serve(CommandStore(args.database), sys.stdin, sys.stdout)
+    serve(SilentOSClient(args.api_url), sys.stdin, sys.stdout)
