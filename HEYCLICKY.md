@@ -128,3 +128,10 @@ Live browser check on November 14, 2026: a manually typed assembled test command
 was parsed into WhatsApp, a pretend test recipient, and the exact body. Queueing
 in draft mode and cancelling before pickup succeeded. This check did not record
 a camera clip, connect HeyClicky, open WhatsApp, or send any message.
+
+After explicit user approval, the SilentOS local connector was added to HeyClicky
+1.1.3 and displayed Connected. Normal talk chat did not expose its tools. A fresh
+background agent job successfully called `silentos_list_commands`, returning the
+cancelled browser-test command. This verifies live stdio tool discovery and queue
+reading through HeyClicky. It does not yet verify claim/report tools inside
+HeyClicky, drafting in Messages/WhatsApp, continuous pickup, or sending.
