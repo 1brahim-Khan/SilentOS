@@ -12,7 +12,7 @@ import urllib.parse
 import uuid
 
 #DEFAULT_URL = "https://frames-tickets-follow-idol.trycloudflare.com"
-DEFAULT_URL = "https://triple-card-ministers-outsourcing.trycloudflare.com"
+DEFAULT_URL = "https://continually-priest-rural-moments.trycloudflare.com"
 
 
 def request(base_url, endpoint, data=None, headers=None, timeout=120):
@@ -44,7 +44,7 @@ def ready(base_url=DEFAULT_URL):
 def transcribe(path, base_url=DEFAULT_URL):
     path = Path(path)
     if path.suffix.lower() not in {'.mp4', '.webm'}:
-        raise ValueError('Use an MP4 or WebM clip, preferably 2–5 seconds, at most 8 seconds.')
+        raise ValueError('Use an MP4 or WebM clip, preferably 2–5 seconds, at most 60 seconds.')
     if not path.is_file() or not 0 < path.stat().st_size <= 50 * 1024 * 1024:
         raise ValueError('Video must be a nonempty file no larger than this client’s 50 MiB limit.')
     boundary = uuid.uuid4().hex

@@ -4,6 +4,9 @@ import errno
 from urllib.parse import urlparse, parse_qs
 import json
 import os
+import secrets
+import shlex
+import sys
 from pathlib import Path
 import tempfile
 import threading
@@ -11,13 +14,69 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from flare import DEFAULT_URL, ready, transcribe
 import room
+from commands import CommandStore, default_path, parse_command
 
 BASE_URL = os.environ.get('FLARE_API_URL', DEFAULT_URL)
 BUSY = threading.Lock()
 PAGE = Path(__file__).parent / 'static' / 'index.html'
+TOKEN = secrets.token_urlsafe(32)
+STORE = None
+STORE_LOCK = threading.Lock()
+
+
+def command_store():
+    global STORE
+    with STORE_LOCK:
+        if STORE is None:
+            STORE = CommandStore(default_path())
+    return STORE
 
 
 class Handler(BaseHTTPRequestHandler):
+    def local_request(self):
+        allowed = {f'localhost:{self.server.server_port}', f'127.0.0.1:{self.server.server_port}'}
+        origin = self.headers.get('Origin')
+        if self.headers.get('Host') not in allowed or (origin and origin not in {f'http://{host}' for host in allowed}):
+            self.send(403, {'error': 'Local origin required'})
+            return False
+        return True
+
+    def command_request(self):
+        token = self.headers.get('X-SilentOS-Token', '')
+        if not secrets.compare_digest(token.encode(), TOKEN.encode()):
+            self.send(403, {'error': 'Reload SilentOS to refresh its local session token'})
+            return False
+        return True
+
+    def command_post(self):
+        if not self.command_request():
+            return
+        try:
+            if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                raise ValueError('Expected application/json')
+            size = int(self.headers.get('Content-Length', '0'))
+            if not 0 < size <= 40000:
+                raise ValueError('JSON request must be between 1 and 40000 bytes')
+            data = json.loads(self.rfile.read(size))
+            if not isinstance(data, dict):
+                raise ValueError('Expected a JSON object')
+            if self.path == '/api/commands/parse':
+                result = parse_command(data.get('text'))
+            elif self.path == '/api/commands':
+                result = command_store().enqueue(data)
+            elif self.path == '/api/commands/cancel':
+                result = command_store().cancel(data.get('id'))
+            elif self.path == '/api/commands/resolve':
+                result = command_store().resolve_uncertain(data.get('id'))
+            else:
+                self.send(404, {'error': 'Not found'})
+                return
+            self.send(200, result)
+        except (ValueError, TypeError) as exc:
+            self.send(400, {'error': str(exc)})
+        except Exception:
+            self.send(500, {'error': 'Local command storage unavailable; check server logs and disk permissions'})
+
     def setup(self):
         super().setup()
         self.connection.settimeout(130)
@@ -60,14 +119,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(403, {'error': str(exc)})
         if not self.local():
             return self.send(403, {'error': 'Only the listener page is available over the network.'})
+        if not self.local_request():
+            return
         if self.path == '/':
             self.send(200, PAGE.read_bytes(), 'text/html; charset=utf-8')
         elif self.path == '/command.js':
             self.send(200, (PAGE.parent / 'command.js').read_bytes(), 'text/javascript; charset=utf-8')
+        elif self.path == '/handoff.js':
+            self.send(200, (PAGE.parent / 'handoff.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/prism.js':
             self.send(200, (PAGE.parent / 'prism.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/api/config':
-            self.send(200, {'api_url': BASE_URL})
+            self.send(200, {'api_url': BASE_URL, 'session_token': TOKEN, 'connector_command': shlex.join([sys.executable, str(PAGE.parent.parent / 'heyclicky_mcp.py')])})
+        elif self.path == '/api/commands':
+            if self.command_request():
+                try:
+                    self.send(200, {'commands': command_store().list()})
+                except Exception:
+                    self.send(500, {'error': 'Local command storage unavailable'})
         elif self.path == '/api/ready':
             try:
                 self.send(200, ready(BASE_URL))
@@ -99,6 +168,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(400, {'error': str(exc)})
         if not self.local():
             return self.send(403, {'error': 'Transcription is available only on localhost.'})
+        if not self.local_request():
+            return
+        if self.path == '/api/commands' or self.path.startswith('/api/commands/'):
+            self.command_post()
+            return
         if self.path != '/api/transcribe':
             self.send(404, {'error': 'Not found'})
             return

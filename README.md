@@ -1,7 +1,7 @@
 # Hosted FLARE client
 
 Public API verified November 14, 2026:
-`https://triple-card-ministers-outsourcing.trycloudflare.com`
+`https://continually-priest-rural-moments.trycloudflare.com`
 
 The tunnel runs on Amarel within job 63918217 on gpuk010, independently of
 any laptop. The current allocation ends November 14 at 11:43 PM Eastern.
@@ -35,7 +35,7 @@ python3 flare.py
 python3 flare.py /absolute/path/to/clip.mp4
 ```
 
-Use a consented 2–5 second raw webcam recording, at most 8 seconds. MP4 or WebM; one face, front-facing and well lit. Do not crop or resize manually. For browser capture use `audio: false`. Uploading sends the video to the teammate's hosted service.
+Use a consented 2–5 second raw webcam recording, at most 60 seconds. MP4 or WebM; one face, front-facing and well lit. Do not crop or resize manually. For browser capture use `audio: false`. Uploading sends the video to the teammate's hosted service.
 
 The tunnel is temporary. Override it without editing code:
 
@@ -55,7 +55,7 @@ const result = await transcribeVideo(recordedBlob);
 
 The browser helper accepts an optional second argument for a replacement URL. Browser calls require the server to permit your origin through CORS. Python success does not prove browser success. Do not manually set multipart Content-Type. Do not retry timed-out uploads automatically: the GPU may still be processing them.
 
-Check readiness once at session start. Transcription verifies a nonempty transcript and `audio_used: false`, without an extra readiness request. Clip duration is enforced by the server. Keep Start/Stop recording under 8 seconds, show processing state, and prevent duplicate submissions in your UI. These client helpers do not record video or execute agent actions; the local camera page below records video.
+Check readiness once at session start. Transcription verifies a nonempty transcript and `audio_used: false`, without an extra readiness request. Clip duration is enforced by the server. Keep recordings under 60 seconds, show processing state, and prevent duplicate submissions in your UI. These client helpers do not record video or execute agent actions; the local camera page below records video.
 
 Next live check: upload a real clip, inspect transcript and timing, then test from the actual frontend origin. The guide reports a finite GPU allocation; reconfirm availability before a demo.
 
@@ -68,7 +68,7 @@ python3 server.py
 
 Open http://localhost:8000, allow camera access when prompted, then press Start. The camera opens automatically and stays on between phrases until the page closes. The backend must run on your laptop for this localhost URL to work there. Use `--port 8001` if necessary. No additional dependencies.
 
-The browser captures audio-free MP4/WebM clips with an eight-second default (3, 5, and 6 seconds are also available) and sends raw video bodies to local `POST /api/transcribe`. Eight-second capture stops about 100ms early to allow recorder shutdown within the API limit. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
+The browser captures audio-free MP4/WebM clips with an eight-second default (3, 5, 6, 15, 30, and 60 seconds are also available) and sends raw video bodies to local `POST /api/transcribe`. The 60-second option stops about 150ms early to allow recorder shutdown within the API limit. The backend forwards multipart uploads using the existing FLARE client, validates responses, and removes temporary files. `GET /api/ready` proxies model readiness. The camera preview is mirrored; uploaded frames are not intentionally mirrored.
 
 Continue recording mode captures the next phrase while the previous upload processes. Finish phrase submits early and pauses recording without disabling the camera. Press Start to resume, including while a prior phrase is processing. There is one in-flight request and at most two waiting clips. Capture pauses when the queue is full and resumes when space opens; watch the Recording/Catching up status. Clips remain separate phrases; automatic cut points can split words. Pause (under Details) submits the final partial recording and keeps the camera ready; a request already processing can still return its transcript. No transcript triggers agent execution.
 
@@ -128,7 +128,8 @@ transcription failures mark the command Incomplete and require New command befor
 recording another instruction. Clips shorter than half a second are still skipped.
 Commands live only in browser memory and are lost on reload. Ready means all clips
 returned, not that the instruction is semantically complete or correctly recognized.
-No parsing, HeyClicky integration, or message sending is performed.
+Finished commands now feed a parser and persistent local handoff queue; see below.
+The application itself does not send messages.
 
 Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
 `python3 -m unittest discover -s tests -p 'test_*.py'`.
@@ -150,3 +151,34 @@ On the speaker, record a phrase, click **Finish command**, review/edit the comma
 Rooms expire after one hour, are held only in server memory, and disappear on restart. Listener links grant access to captions to anyone who holds them; create a fresh room if a link leaks. This LAN demo uses **unencrypted HTTP**, so use it only on a trusted private network; it is not suitable for sensitive conversations or public exposure. Camera/video upload and room creation are restricted to the server machine. The listener can only read and acknowledge captions, not submit speaker messages. Messages are retained in memory until room expiry/restart (maximum 200 per room). A receipt means the listener page received text, not that speech played. For remote devices or HTTPS on both phones, use a properly authenticated HTTPS deployment; do not expose the development server directly to the internet.
 
 If the listener cannot connect, check the IP address, server's `--lan` flag, firewall permissions, and client isolation on Wi-Fi. If transcription fails, get the current FLARE API URL; an expired tunnel cannot be fixed by the room. The room and UI tests are automated, but a real second device and actual audio playback still require manual validation.
+## Message parsing and HeyClicky connector
+
+After finishing a command, the Message handoff panel extracts explicit instructions
+such as `Send Alex on WhatsApp saying I will be there soon`. Review app, recipient,
+and exact message, choose draft or send mode, then queue it. Optional automatic
+queueing is off by default. The SQLite queue survives restarts and the local MCP
+connector supplies atomic claim and result-reporting tools for HeyClicky.
+
+See [HEYCLICKY.md](HEYCLICKY.md) for setup, supported phrasing, draft testing,
+recovery, and privacy. A connected **active** HeyClicky job is still needed; no
+automatic external wakeup or live message sending has been verified. Queueing
+alone never opens a messaging app or sends. End-to-end tests are still required.
+
+## Longer recordings
+
+Eight seconds remains the default; 15, 30, and 60 seconds are also available.
+Each clip is uploaded in one request and transcribed as a whole, without browser
+segmentation. Captions arrive after the entire clip is processed. Continuous
+starts another clip automatically; uncheck it to stop after one clip.
+Finish phrase submits early and pauses.
+
+The hosted preprocessing duration limit is 60 seconds, with a 3,601-source-frame
+budget (up to 60 FPS). Model dataset filtering and cropping limits are 1,502
+frames to preserve a full minute resampled to 25 FPS. Input-frame preservation
+is checked before inference. The existing 50 MiB local upload limit still applies.
+The backend update is deployed in the existing Amarel model project; its source
+is managed separately from this client repository. A real 60-second repeated
+public-footage upload preserved all 1,500 frames and returned a transcript through
+the local proxy and public tunnel. This checks capacity, not long-form accuracy.
+
+Regression: `node tests/long_capture.cjs`.
