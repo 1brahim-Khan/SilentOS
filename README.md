@@ -128,7 +128,21 @@ transcription failures mark the command Incomplete and require New command befor
 recording another instruction. Clips shorter than half a second are still skipped.
 Commands live only in browser memory and are lost on reload. Ready means all clips
 returned, not that the instruction is semantically complete or correctly recognized.
-No parsing, HeyClicky integration, or message sending is performed.
+Finished commands now feed a parser and persistent local handoff queue; see below.
+The application itself does not send messages.
 
 Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
 `python3 -m unittest discover -s tests -p 'test_*.py'`.
+
+## Message parsing and HeyClicky connector
+
+After finishing a command, the Message handoff panel extracts explicit instructions
+such as `Send Alex on WhatsApp saying I will be there soon`. Review app, recipient,
+and exact message, choose draft or send mode, then queue it. Optional automatic
+queueing is off by default. The SQLite queue survives restarts and the local MCP
+connector supplies atomic claim and result-reporting tools for HeyClicky.
+
+See [HEYCLICKY.md](HEYCLICKY.md) for setup, supported phrasing, draft testing,
+recovery, and privacy. A connected **active** HeyClicky job is still needed; no
+automatic external wakeup or live message sending has been verified. Queueing
+alone never opens a messaging app or sends. End-to-end tests are still required.

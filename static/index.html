@@ -24,6 +24,7 @@ body:after{content:'';position:fixed;inset:0;background:#03091630;pointer-events
 @media(max-width:900px){.shell{padding:20px}.workspace{grid-template-columns:minmax(0,1fr) 250px}.sidebar{padding:18px}.toolbar .status{max-width:50%}}
 @media(max-width:680px){.shell{padding:14px}.topbar{margin-bottom:14px}.tagline{font-size:11px;max-width:145px;text-align:right}.workspace{height:auto;min-height:0;grid-template-columns:1fr}.camera{height:68dvh;min-height:400px}.sidebar{min-height:0;height:300px}.toolbar{align-items:start;flex-direction:column;gap:10px}.toolbar .status{text-align:left;max-width:100%}.controls button{padding:12px 22px}.brand{font-size:21px}}
 .command-panel{margin-top:18px;border-top:1px solid #ffffff40;padding-top:14px}.command-panel textarea{min-height:90px;height:100px;font-size:14px;resize:vertical}.command-panel button{margin:5px 3px 0 0}.sidebar{overflow:auto}#commandStatus{font-size:12px}
+.handoff{padding:22px;margin-top:20px}.handoff .panel-heading{margin-bottom:10px;gap:15px;flex-wrap:wrap}.handoff-hint{font-size:12px;color:#d5e0f5}.handoff-fields{display:grid;grid-template-columns:1fr 2fr 1.5fr;gap:14px}.handoff label{display:flex;flex-direction:column;gap:7px;font-size:12px}.handoff input:not([type=checkbox]),.handoff select,.handoff textarea{width:100%;box-sizing:border-box;background:#10203b99;border:1px solid #ffffff55;border-radius:10px;padding:10px;color:#fff}.handoff-message{margin-top:14px}.handoff textarea{min-height:85px;resize:vertical;font-size:15px}.handoff-actions{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:14px}.handoff-actions label{flex-direction:row;align-items:center}#commandQueue{padding-left:22px;font-size:13px}#commandQueue li{padding:10px 0;border-top:1px solid #ffffff22;overflow-wrap:anywhere}#commandQueue button{margin-left:12px}#queueError{font-size:12px;color:#ffd1c9}@media(max-width:680px){.handoff-fields{grid-template-columns:1fr}.handoff{padding:16px}}
 </style></head><body>
 <canvas id="prism" aria-hidden="true"></canvas>
 <main class="shell">
@@ -40,6 +41,16 @@ body:after{content:'';position:fixed;inset:0;background:#03091630;pointer-events
 </div>
 <div class="toolbar"><div class="settings-group"><label><select id="duration" aria-label="Clip length"><option value="3000">3 sec</option><option value="5000">5 sec</option><option value="6000">6 sec</option><option value="8000" selected>8 sec</option></select></label><label><input id="repeat" type="checkbox" checked> Continuous</label></div><div id="status" class="status" role="status" aria-live="polite">Connecting…</div></div>
 <details class="diagnostics"><summary>Details</summary><div class="detail-body glass"><p>Video only · Audio off · Clips processed by hosted FLARE.</p><p id="queueStatus"></p><p id="endpoint"></p><button class="subtle" id="recheck">Reconnect</button><button class="subtle" id="stop">Pause</button><ol id="history"></ol></div></details>
+<section class="handoff glass" aria-label="Message handoff">
+<div class="panel-heading"><h2>Message handoff</h2><button id="copyConnector" class="subtle">Copy HeyClicky connector command</button></div>
+<p id="handoffStatus" role="status" aria-live="polite">Finish a command to extract its message.</p>
+<p class="handoff-hint">Example: Send Alex on WhatsApp saying I’ll be there in ten minutes.</p>
+<div class="handoff-fields"><label>App<select id="messageApp"><option value="imessage">iMessage</option><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option></select></label><label>Recipient<input id="messageRecipient" autocomplete="off" maxlength="160" placeholder="Exact name or phone number"></label><label>Action<select id="messageMode"><option value="draft">Prepare draft only</option><option value="send">Send once through HeyClicky</option></select></label></div>
+<label class="handoff-message">Exact message<textarea id="messageBody" maxlength="5000" placeholder="Review the words to send."></textarea></label>
+<div class="handoff-actions"><button id="queueCommand" class="subtle" disabled>Queue for HeyClicky</button><label><input id="autoQueue" type="checkbox"> Queue finished commands automatically</label><button id="refreshCommands" class="subtle">Refresh queue</button></div>
+<p class="handoff-hint">Queueing stores the command on this Mac. A connected, active HeyClicky job must pick it up. Draft mode never authorizes Send. Ambiguous recipients must be resolved before sending.</p>
+<p id="queueError" role="status" aria-live="polite"></p><ol id="commandQueue" aria-label="Recent message commands"></ol>
+</section>
 </main>
 <script src="/command.js"></script>
 <script>
@@ -51,7 +62,7 @@ let note='Checking model…',captureStart=0,captureLimit=0,discard=false;
 function render(){
  if(finishRequested&&!recording&&!stopping&&!busy&&!queue.length){command.finish();finishRequested=false;}
  const locked=recording||stopping||busy||queue.length>0||active||finishRequested;
- $('commandText').readOnly=locked||command.state==='cancelled';
+ $('commandText').readOnly=locked||Boolean(command.handoffLocked)||command.state==='cancelled';
  if(locked||command.state==='empty')$('commandText').value=command.text;
  $('commandStatus').textContent=finishRequested?'Waiting for transcripts…':({draft:'Draft — add clips or finish command.',waiting:'Waiting for transcripts…',ready:'Ready for review — not sent.',empty:'No command recorded.',incomplete:'Incomplete — '+command.error+'. Start a new command and repeat the instruction.',cancelled:'Cancelled.'})[command.state];
  $('finishCommand').disabled=finishRequested||command.sealed||Boolean(command.error)||(!locked&&!command.text);
@@ -67,6 +78,7 @@ function render(){
  $('stop').disabled=!active&&!recording;
  $('recheck').disabled=checking||busy||active||recording||queue.length>0;
  $('queueStatus').textContent=`${busy?'Processing 1 clip':'No request running'} · ${queue.length}/${MAX_WAITING} waiting`;
+ window.renderCommandHandoff?.(command);
  $('status').textContent=recording?`Recording — ${Math.max(0,(captureLimit-(performance.now()-captureStart))/1000).toFixed(1)}s remaining`:active&&queue.length>=MAX_WAITING?'Catching up — capture paused. Wait before mouthing the next phrase.':note;
 }
 async function api(path,options={}){const r=await fetch(path,{...options,signal:AbortSignal.timeout(125000)});let data;try{data=await r.json();}catch{throw new Error(`Backend returned HTTP ${r.status} without JSON. Check the server terminal.`);}if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);return data;}
@@ -133,4 +145,5 @@ api('/api/config').then(c=>{$('endpoint').textContent='FLARE endpoint: '+c.api_u
 check();
 openCamera();
 </script>
+<script src="/handoff.js" defer></script>
 <script src="/prism.js" defer></script></body></html>
