@@ -31,3 +31,9 @@ Regression: `node tests/silent-flow.cjs` verifies video-only capture, absence of
 ## Participant modes and call controls
 
 Join/create is the green phone icon in the camera control bar; hang up is the red icon beside it. Both have accessible labels and tooltips. Each participant has an independent Silent mode toggle, available before joining and during idle parts of a call. Creator defaults to silent; invitee defaults to microphone. Either can capture video-only FLARE phrases and send synthesized speech in silent mode. Switching to silent replaces the outgoing microphone track with silence and stops microphone capture; switching to microphone requests permission and replaces the silent track. A silent placeholder audio track keeps the negotiated audio channel available for switching without redialing. FLARE clips always exclude audio. Mode changes are locked during recording and transcription.
+
+## Mobile call layout
+
+The hosted call page includes safe-area padding for notched phones, a camera-first portrait layout, compact touch controls, a scrollable conversation panel, 16px form inputs to avoid text-entry zoom, and a landscape layout. The browser requests the front camera at a preferred 720p/30fps; actual capture settings depend on the device. Share call link uses the phone's native share sheet when available; Copy invitation remains available.
+
+Audio initialization begins on the Join/Create gesture. Local and remote media remain inline, and Enable sound retries playback after browser autoplay restrictions. Switching apps or locking the screen can interrupt media; an active phrase is discarded on backgrounding instead of auto-sending an incomplete transcript. Keep the app visible during calls. Simulated tests cover both participants, silent/microphone switching and background interruption. Actual iOS/Android device playback, camera permissions, orientation, and network connectivity still need physical-device verification.
