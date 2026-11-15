@@ -1,13 +1,13 @@
 # Hosted FLARE client
 
-Public API verified November 14, 2026:
-`https://continually-priest-rural-moments.trycloudflare.com`
+Public readiness verified November 15, 2026 (`model_loaded: true`):
+`https://identity-inspection-cfr-items.trycloudflare.com`
 
-The tunnel runs on Amarel within job 63918217 on gpuk010, independently of
-any laptop. The current allocation ends November 14 at 11:43 PM Eastern.
+The tunnel runs on Amarel within job 63926329 on gpu028 (A100 40 GB), independently of
+any laptop. The current allocation ends November 15 at 6:20:51 AM Eastern.
 Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart
 field `video`. This is a temporary API URL, not a hosted camera webpage.
-The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63918217.log`
+The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63926329.log`
 on Amarel. A new allocation and tunnel will be needed after the job ends.
 
 ## Windows quick start
