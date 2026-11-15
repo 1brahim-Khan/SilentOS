@@ -1,0 +1,1 @@
+{"name":"silentos-call","private":true,"type":"module","scripts":{"build":"node --check public/app.js && node --check api/transcribe.js"}}

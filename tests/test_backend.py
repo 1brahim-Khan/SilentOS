@@ -130,3 +130,21 @@ class RoomTests(BackendTests):
         self.assertTrue(json.loads(data)['listener_connected'])
         self.assertEqual(self.call(path, headers={'Authorization': 'Bearer invalid'})[0], 403)
         self.assertEqual(self.call('/listen')[0], 200)
+
+class SignalingTests(BackendTests):
+    def test_offer_answer_and_role_validation(self):
+        def post(path, payload):
+            return self.call(path, json.dumps(payload).encode(), {'Content-Type':'application/json'})
+        _, data = post('/api/room/create', {})
+        c = json.loads(data)
+        base = {'room':c['room'], 'role':'speaker', 'token':c['speaker_token']}
+        self.assertEqual(post('/api/room/signal', {**base, 'payload':{'type':'offer','sdp':'sample'}})[0], 200)
+        q = f"/api/room/signals?room={c['room']}&role=listener&after=0"
+        code, data = self.call(q, headers={'Authorization':'Bearer '+c['listener_token']})
+        self.assertEqual(json.loads(data)['events'][0]['sdp'], 'sample')
+        self.assertEqual(self.call(q, headers={'Authorization':'Bearer incorrect'})[0], 403)
+        bad = {'room':c['room'], 'role':'listener','token':c['listener_token'],'payload':{'type':'offer','sdp':'sample'}}
+        self.assertEqual(post('/api/room/signal', bad)[0], 400)
+        answer = {**bad, 'payload':{'type':'answer','sdp':'response'}}
+        self.assertEqual(post('/api/room/signal', answer)[0], 200)
+        self.assertEqual(self.call('/call.js')[0], 200)

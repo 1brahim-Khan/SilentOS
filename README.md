@@ -182,3 +182,31 @@ public-footage upload preserved all 1,500 frames and returned a transcript throu
 the local proxy and public tunnel. This checks capacity, not long-form accuracy.
 
 Regression: `node tests/long_capture.cjs`.
+
+## Two-way video call (experimental)
+
+The speaker can send camera video while keeping their microphone off; the listener can send camera video and microphone audio. Approved captions and listener-side text-to-speech remain separate from the WebRTC media connection. Both people must click their call button and grant permission. The silent speaker's recorded FLARE clips still use video only.
+
+The listener must open the room through HTTPS with a certificate its browser trusts. The existing HTTP LAN link is not a secure context and cannot request camera/microphone access. One way to prepare a **trusted private-network certificate** is `mkcert`: install and initialize it on the host, generate a certificate for the host's current LAN IP, then install its local CA certificate on the listener laptop through the OS's certificate trust settings. Trust only a CA controlled by someone you trust; never copy the CA private key to the second device. Refer to mkcert's documentation for your operating systems. Store the leaf certificate and private key outside the repository.
+
+With the current LAN IP substituted:
+
+```sh
+mkcert -install
+mkcert -cert-file /private/tmp/silentos-cert.pem -key-file /private/tmp/silentos-key.pem 192.168.1.25
+python3 server.py --lan --port 8000 --tls-port 8443 \
+  --tls-cert /private/tmp/silentos-cert.pem --tls-key /private/tmp/silentos-key.pem \
+  --api-url https://CURRENT-FLARE-HOST
+```
+
+Open `http://localhost:8000` on the speaker's Mac. Create a new room, enter its actual LAN IP and HTTPS port 8443, then share the generated `https://.../listen#...` link privately. The listener must trust the issuing CA and use the same IP covered by the certificate. Click **Start video call** on the speaker and **Join video call** on the listener. Listener grants camera/microphone access; use headphones to avoid speech playback feeding back into the microphone. End call stops the listener's camera/microphone and closes WebRTC; the speaker camera remains active for FLARE until the page closes. Create a new room for a fresh call after a reconnect or failure.
+
+The server uses HTTP polling for signaling and a public STUN service for ICE discovery. No TURN relay is configured: direct peer connections may fail on isolated/restricted Wi-Fi, even when signaling works. Both devices need to reach the host's HTTPS port. This is an experimental trusted-LAN demo, not a production conferencing service. Do not expose the server directly to the public Internet. WebRTC signaling and room APIs were tested with simulated requests; actual camera/microphone and two-device connectivity have not been verified.
+
+### Phone and video views
+
+The call starts in **phone view**: incoming video is visually hidden while call audio remains available. Choose **Video view** to display the other participant's video if they share it. Each participant separately controls **Share my camera**, which starts off. The silent speaker's lip-reading camera continues to run locally even when camera sharing is off; sharing uses a separate cloned track. The listener's microphone is requested when joining and is sent to the speaker. The listener's camera is requested for optional sharing but its video track starts disabled. Test actual device behavior and permissions before relying on these controls; video-call connectivity and playback are still unverified on two physical devices.
+
+## Hosted two-laptop call
+
+The simpler HTTPS demo is in `web-call/`, deployed at https://silentos-call.vercel.app. Open it on the silent speaker laptop, create a call, and copy the invitation to the second laptop. No LAN addresses, local certificate setup, or local Python server are needed. The second laptop joins with microphone/camera permission; both start with camera sharing off and can choose phone or video view. Use headphones and click Enable call sound if playback is blocked. See `web-call/README.md` for deployment and networking limits.

@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import shlex
+import ssl
 import sys
 from pathlib import Path
 import tempfile
@@ -99,12 +100,24 @@ class Handler(BaseHTTPRequestHandler):
 
     def same_origin(self):
         origin = self.headers.get('Origin')
-        return not origin or origin == f"http://{self.headers.get('Host')}"
+        scheme = 'https' if isinstance(self.connection, ssl.SSLSocket) else 'http'
+        return not origin or origin == f"{scheme}://{self.headers.get('Host')}"
 
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/listen':
             return self.send(200, (PAGE.parent / 'listen.html').read_bytes(), 'text/html; charset=utf-8')
+        if parsed.path == '/call.js':
+            return self.send(200, (PAGE.parent / 'call.js').read_bytes(), 'text/javascript; charset=utf-8')
+        if parsed.path == '/api/room/signals':
+            try:
+                q = parse_qs(parsed.query)
+                role = q.get('role', [''])[0]
+                if role == 'speaker' and not self.local(): raise PermissionError('Access denied.')
+                token = self.headers.get('Authorization', '').removeprefix('Bearer ')
+                return self.send(200, room.signals(q.get('room', [''])[0], token, role, int(q.get('after', ['0'])[0])))
+            except (ValueError, PermissionError) as exc:
+                return self.send(403, {'error': str(exc)})
         if parsed.path == '/api/room/poll':
             try:
                 q = parse_qs(parsed.query)
@@ -148,18 +161,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.same_origin():
             return self.send(403, {'error': 'Origin not allowed'})
-        if self.path in {'/api/room/create', '/api/room/send', '/api/room/ack'}:
-            if self.path != '/api/room/ack' and not self.local():
+        if self.path in {'/api/room/create', '/api/room/send', '/api/room/ack', '/api/room/signal'}:
+            if self.path not in {'/api/room/ack', '/api/room/signal'} and not self.local():
                 return self.send(403, {'error': 'Speaker must use localhost.'})
             try:
                 size = int(self.headers.get('Content-Length', '0'))
-                if not 0 < size <= 8192: raise ValueError('Invalid request size.')
+                if not 0 < size <= 65536: raise ValueError('Invalid request size.')
                 data = json.loads(self.rfile.read(size))
                 if not isinstance(data, dict): raise ValueError('Invalid request.')
                 if self.path == '/api/room/create':
                     result = room.create()
                 elif self.path == '/api/room/send':
                     result = room.publish(data.get('room', ''), data.get('token', ''), data.get('text'))
+                elif self.path == '/api/room/signal':
+                    if data.get('role') == 'speaker' and not self.local(): raise PermissionError('Access denied.')
+                    room.signal(data.get('room', ''), data.get('token', ''), data.get('role'), data.get('payload'))
+                    result = {'ok': True}
                 else:
                     room.acknowledge(data.get('room', ''), data.get('token', ''), data.get('id'))
                     result = {'ok': True}
@@ -218,6 +235,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8000)
     parser.add_argument('--lan', action='store_true', help='Expose listener page to a trusted local network')
+    parser.add_argument('--tls-cert', help='Trusted certificate for listener HTTPS')
+    parser.add_argument('--tls-key', help='Private key for listener HTTPS')
+    parser.add_argument('--tls-port', type=int, default=8443)
     parser.add_argument('--api-url', default=BASE_URL, help='Current hosted FLARE base URL (or FLARE_API_URL environment variable)')
     args = parser.parse_args()
     BASE_URL = args.api_url.rstrip('/')
@@ -230,6 +250,18 @@ if __name__ == '__main__':
         if exc.errno == errno.EADDRINUSE:
             parser.exit(1, f'Port {args.port} is already in use. Open http://localhost:{args.port}, stop the old server, or choose --port {args.port + 1}.\n')
         raise
+    if bool(args.tls_cert) != bool(args.tls_key): parser.error('Provide both --tls-cert and --tls-key')
+    if args.tls_cert:
+        try:
+            tls = ThreadingHTTPServer(('0.0.0.0' if args.lan else '127.0.0.1', args.tls_port), Handler)
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(args.tls_cert, args.tls_key)
+            tls.socket = context.wrap_socket(tls.socket, server_side=True)
+            threading.Thread(target=tls.serve_forever, daemon=True).start()
+            print(f'HTTPS listener port: {args.tls_port}', flush=True)
+        except (OSError, ssl.SSLError) as exc:
+            server.server_close()
+            parser.exit(1, f'Cannot start HTTPS listener: {exc}\n')
     print(f'Camera app: http://localhost:{args.port}', flush=True)
     if args.lan: print('LAN listener enabled. Share only on a trusted network.', flush=True)
     try:

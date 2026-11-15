@@ -19,7 +19,7 @@ def create():
         room = secrets.token_urlsafe(18)
         speaker, listener = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
         ROOMS[room] = {'speaker': speaker, 'listener': listener, 'expires': now + TTL,
-                       'messages': [], 'listener_seen': 0, 'ack': 0}
+                       'messages': [], 'listener_seen': 0, 'ack': 0, 'signals': {'speaker': [], 'listener': []}}
     return {'room': room, 'speaker_token': speaker, 'listener_token': listener}
 
 
@@ -57,3 +57,25 @@ def acknowledge(room_id, token, message_id):
         if not isinstance(message_id, int) or not 0 <= message_id <= len(room['messages']):
             raise ValueError('Invalid message ID.')
         room['ack'] = max(room['ack'], message_id)
+
+
+def signal(room_id, token, role, payload):
+    if role not in {'speaker', 'listener'} or not isinstance(payload, dict) or payload.get('type') not in {'offer', 'answer', 'hangup'}:
+        raise ValueError('Invalid signaling message.')
+    if payload['type'] == 'offer' and role != 'speaker' or payload['type'] == 'answer' and role != 'listener':
+        raise PermissionError('Invalid signaling role.')
+    if payload['type'] != 'hangup' and (not isinstance(payload.get('sdp'), str) or len(payload['sdp']) > 50000):
+        raise ValueError('Invalid session description.')
+    with LOCK:
+        session = access(room_id, token, role)
+        target = 'listener' if role == 'speaker' else 'speaker'
+        events = session['signals'][target]
+        if len(events) >= 100: raise ValueError('Signaling limit reached; create a new room.')
+        events.append({'id': len(events) + 1, 'type': payload['type'], 'sdp': payload.get('sdp', '')})
+
+
+def signals(room_id, token, role, after):
+    if role not in {'speaker', 'listener'} or after < 0: raise ValueError('Invalid signaling request.')
+    with LOCK:
+        session = access(room_id, token, role)
+        return {'events': session['signals'][role][after:]}
