@@ -12,10 +12,5 @@ __pycache__/
 *.webm
 *.log
 .silent/
-*.key
-*.pem
-*.crt
-.vercel/
-.vercel
-.env*
 public/
+.vercel/

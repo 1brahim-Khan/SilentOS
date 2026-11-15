@@ -111,59 +111,6 @@ Prism Gradient uses Componentry’s WebGL shader adapted to plain JavaScript
 (`static/prism.js`, MIT attribution in `static/COMPONENTRY-LICENSE.txt`), with
 reduced-motion support and a CSS fallback when WebGL2 is unavailable.
 
-## Command assembly
-
-Press Start and record one instruction across multiple clips. The Current command
-panel joins returned clips in capture order with a space; it preserves wording,
-punctuation, and repetitions rather than guessing missing or overlapping words.
-Finish phrase (or Pause) pauses capture without closing the command. Start adds
-more clips to that same draft. Finish command stops capture and waits for the
-last recording and all queued uploads before marking the text Ready for review.
-With Continuous unchecked, each clip pauses capture but still belongs to the
-current command until Finish command is pressed.
-
-Review or edit the command while capture and uploads are idle. New command clears
-the current command without clearing transcript history. Recording, camera, or
-transcription failures mark the command Incomplete and require New command before
-recording another instruction. Clips shorter than half a second are still skipped.
-Commands live only in browser memory and are lost on reload. Ready means all clips
-returned, not that the instruction is semantically complete or correctly recognized.
-Finished commands now feed a parser and persistent local handoff queue; see below.
-The application itself does not send messages.
-
-Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
-`python3 -m unittest discover -s tests -p 'test_*.py'`.
-
-## Two-device caption and voice demo
-
-This is a one-way, turn-based conversation demo: the speaker records and reviews text on the Mac, and a listener sees captions and can use their browser's text-to-speech. It does **not** yet provide live video, microphone return audio, automatic transcript stitching, or a telephone call. Room transport uses short HTTP polling, not WebSockets. A working FLARE endpoint is required for transcription; a message can also be typed into Current command and finished for a text-only room test.
-
-On the speaker's Mac, connect both devices to a trusted LAN/hotspot that permits device-to-device traffic, then run:
-
-```sh
-python3 server.py --lan --api-url https://CURRENT-FLARE-HOST
-```
-
-Open `http://localhost:8000` on the Mac (localhost is needed for camera permission). Create a room in **Two-device conversation**. Find the Mac's LAN IPv4 address in Wi-Fi settings, or run `ipconfig getifaddr en0` on macOS (your active interface might differ). Enter it in Host LAN IP, copy the generated link, and share it privately with the listener. The listener opens that link on the second device and taps **Enable voice** and **Test voice**. The listener page needs neither camera nor microphone permission.
-
-On the speaker, record a phrase, click **Finish command**, review/edit the command, and click **Send reviewed command to listener**. The status indicates that the listener fetched the message; it does not prove audio played. Browser voices and autoplay policies vary: test the actual listener device. Captions arriving before voice is enabled are shown as text only. The browser queues spoken messages in order.
-
-Rooms expire after one hour, are held only in server memory, and disappear on restart. Listener links grant access to captions to anyone who holds them; create a fresh room if a link leaks. This LAN demo uses **unencrypted HTTP**, so use it only on a trusted private network; it is not suitable for sensitive conversations or public exposure. Camera/video upload and room creation are restricted to the server machine. The listener can only read and acknowledge captions, not submit speaker messages. Messages are retained in memory until room expiry/restart (maximum 200 per room). A receipt means the listener page received text, not that speech played. For remote devices or HTTPS on both phones, use a properly authenticated HTTPS deployment; do not expose the development server directly to the internet.
-
-If the listener cannot connect, check the IP address, server's `--lan` flag, firewall permissions, and client isolation on Wi-Fi. If transcription fails, get the current FLARE API URL; an expired tunnel cannot be fixed by the room. The room and UI tests are automated, but a real second device and actual audio playback still require manual validation.
-## Message parsing and HeyClicky connector
-
-After finishing a command, the Message handoff panel extracts explicit instructions
-such as `Send Alex on WhatsApp saying I will be there soon`. Review app, recipient,
-and exact message, choose draft or send mode, then queue it. Optional automatic
-queueing is off by default. The SQLite queue survives restarts and the local MCP
-connector supplies atomic claim and result-reporting tools for HeyClicky.
-
-See [HEYCLICKY.md](HEYCLICKY.md) for setup, supported phrasing, draft testing,
-recovery, and privacy. A connected **active** HeyClicky job is still needed; no
-automatic external wakeup or live message sending has been verified. Queueing
-alone never opens a messaging app or sends. End-to-end tests are still required.
-
 ## Longer recordings
 
 Eight seconds remains the default; 15, 30, and 60 seconds are also available.
@@ -182,34 +129,6 @@ public-footage upload preserved all 1,500 frames and returned a transcript throu
 the local proxy and public tunnel. This checks capacity, not long-form accuracy.
 
 Regression: `node tests/long_capture.cjs`.
-
-## Two-way video call (experimental)
-
-The speaker can send camera video while keeping their microphone off; the listener can send camera video and microphone audio. Approved captions and listener-side text-to-speech remain separate from the WebRTC media connection. Both people must click their call button and grant permission. The silent speaker's recorded FLARE clips still use video only.
-
-The listener must open the room through HTTPS with a certificate its browser trusts. The existing HTTP LAN link is not a secure context and cannot request camera/microphone access. One way to prepare a **trusted private-network certificate** is `mkcert`: install and initialize it on the host, generate a certificate for the host's current LAN IP, then install its local CA certificate on the listener laptop through the OS's certificate trust settings. Trust only a CA controlled by someone you trust; never copy the CA private key to the second device. Refer to mkcert's documentation for your operating systems. Store the leaf certificate and private key outside the repository.
-
-With the current LAN IP substituted:
-
-```sh
-mkcert -install
-mkcert -cert-file /private/tmp/silentos-cert.pem -key-file /private/tmp/silentos-key.pem 192.168.1.25
-python3 server.py --lan --port 8000 --tls-port 8443 \
-  --tls-cert /private/tmp/silentos-cert.pem --tls-key /private/tmp/silentos-key.pem \
-  --api-url https://CURRENT-FLARE-HOST
-```
-
-Open `http://localhost:8000` on the speaker's Mac. Create a new room, enter its actual LAN IP and HTTPS port 8443, then share the generated `https://.../listen#...` link privately. The listener must trust the issuing CA and use the same IP covered by the certificate. Click **Start video call** on the speaker and **Join video call** on the listener. Listener grants camera/microphone access; use headphones to avoid speech playback feeding back into the microphone. End call stops the listener's camera/microphone and closes WebRTC; the speaker camera remains active for FLARE until the page closes. Create a new room for a fresh call after a reconnect or failure.
-
-The server uses HTTP polling for signaling and a public STUN service for ICE discovery. No TURN relay is configured: direct peer connections may fail on isolated/restricted Wi-Fi, even when signaling works. Both devices need to reach the host's HTTPS port. This is an experimental trusted-LAN demo, not a production conferencing service. Do not expose the server directly to the public Internet. WebRTC signaling and room APIs were tested with simulated requests; actual camera/microphone and two-device connectivity have not been verified.
-
-### Phone and video views
-
-The call starts in **phone view**: incoming video is visually hidden while call audio remains available. Choose **Video view** to display the other participant's video if they share it. Each participant separately controls **Share my camera**, which starts off. The silent speaker's lip-reading camera continues to run locally even when camera sharing is off; sharing uses a separate cloned track. The listener's microphone is requested when joining and is sent to the speaker. The listener's camera is requested for optional sharing but its video track starts disabled. Test actual device behavior and permissions before relying on these controls; video-call connectivity and playback are still unverified on two physical devices.
-
-## Hosted two-laptop call
-
-The simpler HTTPS demo is in `web-call/`, deployed at https://silentos-call.vercel.app. Open it on the silent speaker laptop, create a call, and copy the invitation to the second laptop. No LAN addresses, local certificate setup, or local Python server are needed. The second laptop joins with microphone/camera permission; both start with camera sharing off and can choose phone or video view. Use headphones and click Enable call sound if playback is blocked. See `web-call/README.md` for deployment and networking limits.
 
 ## Decorative face mesh
 

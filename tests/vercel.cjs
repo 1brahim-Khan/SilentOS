@@ -40,7 +40,6 @@ const context = {
   },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync("static/command.js", "utf8"), context);
 vm.runInContext(fs.readFileSync('static/index.html', 'utf8').split('<script>')[1].split('</script>')[0], context);
 (async () => {
   await new Promise(resolve => setImmediate(resolve));
