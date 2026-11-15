@@ -116,7 +116,7 @@ resize();window.addEventListener('resize',resize);
 for(const [name,value] of Object.entries({u_pixelRatio:1,u_scale:.01,u_rotation:-50*Math.PI/180,u_proportion:.35,u_softness:.47,u_shapeScale:.45,u_distortion:0,u_swirl:.5,u_swirlIterations:16}))gl.uniform1f(uniform(name),value);
 gl.uniform4fv(uniform('u_color1'),[5/255,5/255,5/255,1]);gl.uniform4fv(uniform('u_color2'),[102/255,179/255,1,1]);gl.uniform4fv(uniform('u_color3'),[1,1,1,1]);
 const motion=matchMedia('(prefers-reduced-motion: reduce)');let frame,last=-Infinity;
-function draw(now){if(now-last>=1000/30){last=now;gl.uniform1f(time,motion.matches?-2.99:now/1000*.65-2.99);gl.uniform2f(resolution,canvas.width,canvas.height);gl.drawArrays(gl.TRIANGLES,0,6);}if(!motion.matches)frame=requestAnimationFrame(draw);}
+function draw(now){if(now-last>=1000/30){last=now;gl.uniform1f(time,motion.matches?-2.99:now/1000*.25-2.99);gl.uniform2f(resolution,canvas.width,canvas.height);gl.drawArrays(gl.TRIANGLES,0,6);}if(!motion.matches)frame=requestAnimationFrame(draw);}
 function resume(){cancelAnimationFrame(frame);if(!document.hidden){last=-Infinity;frame=requestAnimationFrame(draw);}}
 document.addEventListener('visibilitychange',resume);motion.addEventListener('change',resume);
 canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(frame);});

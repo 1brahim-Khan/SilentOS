@@ -210,3 +210,27 @@ The call starts in **phone view**: incoming video is visually hidden while call 
 ## Hosted two-laptop call
 
 The simpler HTTPS demo is in `web-call/`, deployed at https://silentos-call.vercel.app. Open it on the silent speaker laptop, create a call, and copy the invitation to the second laptop. No LAN addresses, local certificate setup, or local Python server are needed. The second laptop joins with microphone/camera permission; both start with camera sharing off and can choose phone or video view. Use headphones and click Enable call sound if playback is blocked. See `web-call/README.md` for deployment and networking limits.
+
+## Decorative face mesh
+
+The existing mirrored camera preview has a transparent cyan wireframe canvas,
+with brighter lips and subtle facial contours. It is cosmetic, not recognition,
+confidence, model output, or a measure of lip-reading quality. It is never drawn
+into recordings or sent to FLARE. The media stream and recorder are unchanged.
+
+MediaPipe 0.10.21 and the Face Landmarker model are bundled in
+`static/mesh-assets/`, including attribution and source URLs. The browser reads
+small (at most 384px) snapshots of the existing video and processes them locally
+in a worker. No extra permission or camera stream is used. Detection is capped
+at 10 Hz and backs off on slow devices, with one frame in flight; canvas drawing
+is capped at 30 Hz. Worker CPU overhead still depends on hardware. Disable it
+using **Details → Face mesh** if needed. Unsupported or failed initialization
+leaves the camera and transcription working without a mesh. Workers and canvas
+are cleared when video stops, the tab is hidden, the switch is off, or the page
+closes. Camera permission handling remains the existing browser flow.
+
+Tests: `node tests/mesh.cjs` covers mirrored/letterboxed geometry, backpressure,
+stale snapshots, toggle, camera end and cleanup. Existing queue, long recording,
+and backend tests cover pipeline regressions. Visual testing
+used moving public LRS3 footage in `tests/mesh_preview.py`; actual live webcam
+FPS and performance vary by device and have not been benchmarked.

@@ -20,6 +20,22 @@ from commands import CommandStore, default_path, parse_command
 BASE_URL = os.environ.get('FLARE_API_URL', DEFAULT_URL)
 BUSY = threading.Lock()
 PAGE = Path(__file__).parent / 'static' / 'index.html'
+# Exact routes only: never expose arbitrary workspace files or directory paths.
+MESH_ASSETS = {
+    '/face-mesh.js': ('face-mesh.js', 'text/javascript; charset=utf-8'),
+    '/face-mesh-worker.js': ('face-mesh-worker.js', 'text/javascript; charset=utf-8'),
+    '/mesh-geometry.js': ('mesh-geometry.js', 'text/javascript; charset=utf-8'),
+    '/mesh-assets/vision_bundle.cjs': ('mesh-assets/vision_bundle.cjs', 'text/javascript; charset=utf-8'),
+    '/mesh-assets/face_landmarker.task': ('mesh-assets/face_landmarker.task', 'application/octet-stream'),
+    **{f'/mesh-assets/wasm/{name}': (f'mesh-assets/wasm/{name}', mime)
+       for name, mime in [
+           ('vision_wasm_internal.js', 'text/javascript; charset=utf-8'),
+           ('vision_wasm_internal.wasm', 'application/wasm'),
+           ('vision_wasm_nosimd_internal.js', 'text/javascript; charset=utf-8'),
+           ('vision_wasm_nosimd_internal.wasm', 'application/wasm'),
+       ]},
+}
+
 TOKEN = secrets.token_urlsafe(32)
 STORE = None
 STORE_LOCK = threading.Lock()
@@ -136,6 +152,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/':
             self.send(200, PAGE.read_bytes(), 'text/html; charset=utf-8')
+        elif self.path in MESH_ASSETS:
+            name, mime = MESH_ASSETS[self.path]
+            self.send(200, (PAGE.parent / name).read_bytes(), mime)
         elif self.path == '/command.js':
             self.send(200, (PAGE.parent / 'command.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/handoff.js':
