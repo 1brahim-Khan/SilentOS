@@ -1,13 +1,13 @@
 # Hosted FLARE client
 
-Public API verified November 14, 2026:
-`https://continually-priest-rural-moments.trycloudflare.com`
+Public readiness verified November 15, 2026 (`model_loaded: true`):
+`https://rush-kerry-marsh-entitled.trycloudflare.com`
 
-The tunnel runs on Amarel within job 63918217 on gpuk010, independently of
-any laptop. The current allocation ends November 14 at 11:43 PM Eastern.
+The tunnel runs on Amarel within job 63937071 on gpu029, independently of
+any laptop. The current allocation ends November 15 at 2:20:31 PM Eastern.
 Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart
 field `video`. This is a temporary API URL, not a hosted camera webpage.
-The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63918217.log`
+The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63937071.log`
 on Amarel. A new allocation and tunnel will be needed after the job ends.
 
 ## Windows quick start
@@ -234,3 +234,32 @@ stale snapshots, toggle, camera end and cleanup. Existing queue, long recording,
 and backend tests cover pipeline regressions. Visual testing
 used moving public LRS3 footage in `tests/mesh_preview.py`; actual live webcam
 FPS and performance vary by device and have not been benchmarked.
+
+## Vercel hosting
+
+The connected Vercel project uses `vercel.json`: build command
+`node scripts/build.mjs`, framework **Other**, output directory **public**, and
+repository root as Root Directory. No Python server or package install is needed
+on Vercel. Pushes to the production branch build and deploy the static app.
+
+The build copies only `static/` and a generated public configuration file into
+`public/`. Python sources, model-host code, local recordings and presentation
+files are not served. MediaPipe/WASM assets remain on the site's own origin.
+HTTPS supports the existing camera permission flow.
+
+On Vercel, `/api/config` resolves to the generated config. Readiness and multipart
+video requests go directly from the browser to the hosted FLARE API. This avoids
+Vercel Function upload-size limits for long recordings. The FLARE API must permit
+the website origin through CORS (the current API permits `*`). Raw audio-free
+recordings are sent only to that configured model service. Transcripts and the
+cosmetic face mesh still work as before; the mesh never leaves the browser.
+
+Optional Vercel build variable: `FLARE_API_URL` overrides the default in
+`flare.mjs`. It is a **public browser-visible URL**, not a secret; use an HTTPS
+base URL without credentials/query/fragment. Redeploy after changing it. Static
+hosting does not keep the Amarel GPU job or temporary Cloudflare tunnel alive.
+The model must remain running separately for transcription to work.
+
+Local `python server.py` continues to proxy uploads as before. Checks:
+`node tests/vercel.cjs`, `node tests/queue.cjs`, `node tests/long_capture.cjs`,
+`node tests/mesh.cjs`, and the Python backend tests.

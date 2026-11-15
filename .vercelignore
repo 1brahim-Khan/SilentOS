@@ -1,0 +1,14 @@
+hosted/
+assets/
+presentation/
+slides/
+tests/
+.silent/
+.venv/
+__pycache__/
+public/
+*.mp4
+*.webm
+*.mov
+*.log
+.env*
