@@ -111,42 +111,6 @@ Prism Gradient uses Componentry’s WebGL shader adapted to plain JavaScript
 (`static/prism.js`, MIT attribution in `static/COMPONENTRY-LICENSE.txt`), with
 reduced-motion support and a CSS fallback when WebGL2 is unavailable.
 
-## Command assembly
-
-Press Start and record one instruction across multiple clips. The Current command
-panel joins returned clips in capture order with a space; it preserves wording,
-punctuation, and repetitions rather than guessing missing or overlapping words.
-Finish phrase (or Pause) pauses capture without closing the command. Start adds
-more clips to that same draft. Finish command stops capture and waits for the
-last recording and all queued uploads before marking the text Ready for review.
-With Continuous unchecked, each clip pauses capture but still belongs to the
-current command until Finish command is pressed.
-
-Review or edit the command while capture and uploads are idle. New command clears
-the current command without clearing transcript history. Recording, camera, or
-transcription failures mark the command Incomplete and require New command before
-recording another instruction. Clips shorter than half a second are still skipped.
-Commands live only in browser memory and are lost on reload. Ready means all clips
-returned, not that the instruction is semantically complete or correctly recognized.
-Finished commands now feed a parser and persistent local handoff queue; see below.
-The application itself does not send messages.
-
-Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
-`python3 -m unittest discover -s tests -p 'test_*.py'`.
-
-## Message parsing and HeyClicky connector
-
-After finishing a command, the Message handoff panel extracts explicit instructions
-such as `Send Alex on WhatsApp saying I will be there soon`. Review app, recipient,
-and exact message, choose draft or send mode, then queue it. Optional automatic
-queueing is off by default. The SQLite queue survives restarts and the local MCP
-connector supplies atomic claim and result-reporting tools for HeyClicky.
-
-See [HEYCLICKY.md](HEYCLICKY.md) for setup, supported phrasing, draft testing,
-recovery, and privacy. A connected **active** HeyClicky job is still needed; no
-automatic external wakeup or live message sending has been verified. Queueing
-alone never opens a messaging app or sends. End-to-end tests are still required.
-
 ## Longer recordings
 
 Eight seconds remains the default; 15, 30, and 60 seconds are also available.
@@ -165,3 +129,27 @@ public-footage upload preserved all 1,500 frames and returned a transcript throu
 the local proxy and public tunnel. This checks capacity, not long-form accuracy.
 
 Regression: `node tests/long_capture.cjs`.
+
+## Decorative face mesh
+
+The existing mirrored camera preview has a transparent cyan wireframe canvas,
+with brighter lips and subtle facial contours. It is cosmetic, not recognition,
+confidence, model output, or a measure of lip-reading quality. It is never drawn
+into recordings or sent to FLARE. The media stream and recorder are unchanged.
+
+MediaPipe 0.10.21 and the Face Landmarker model are bundled in
+`static/mesh-assets/`, including attribution and source URLs. The browser reads
+small (at most 384px) snapshots of the existing video and processes them locally
+in a worker. No extra permission or camera stream is used. Detection is capped
+at 10 Hz and backs off on slow devices, with one frame in flight; canvas drawing
+is capped at 30 Hz. Worker CPU overhead still depends on hardware. Disable it
+using **Details → Face mesh** if needed. Unsupported or failed initialization
+leaves the camera and transcription working without a mesh. Workers and canvas
+are cleared when video stops, the tab is hidden, the switch is off, or the page
+closes. Camera permission handling remains the existing browser flow.
+
+Tests: `node tests/mesh.cjs` covers mirrored/letterboxed geometry, backpressure,
+stale snapshots, toggle, camera end and cleanup. Existing queue, long recording,
+and backend tests cover pipeline regressions. Visual testing
+used moving public LRS3 footage in `tests/mesh_preview.py`; actual live webcam
+FPS and performance vary by device and have not been benchmarked.

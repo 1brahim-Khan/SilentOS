@@ -4,31 +4,32 @@ import errno
 from urllib.parse import urlparse
 import json
 import os
-import secrets
-import shlex
-import sys
 from pathlib import Path
 import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from flare import DEFAULT_URL, ready, transcribe
-from commands import CommandStore, default_path, parse_command
 
 BASE_URL = os.environ.get('FLARE_API_URL', DEFAULT_URL)
 BUSY = threading.Lock()
 PAGE = Path(__file__).parent / 'static' / 'index.html'
-TOKEN = secrets.token_urlsafe(32)
-STORE = None
-STORE_LOCK = threading.Lock()
+# Exact routes only: never expose arbitrary workspace files or directory paths.
+MESH_ASSETS = {
+    '/face-mesh.js': ('face-mesh.js', 'text/javascript; charset=utf-8'),
+    '/face-mesh-worker.js': ('face-mesh-worker.js', 'text/javascript; charset=utf-8'),
+    '/mesh-geometry.js': ('mesh-geometry.js', 'text/javascript; charset=utf-8'),
+    '/mesh-assets/vision_bundle.cjs': ('mesh-assets/vision_bundle.cjs', 'text/javascript; charset=utf-8'),
+    '/mesh-assets/face_landmarker.task': ('mesh-assets/face_landmarker.task', 'application/octet-stream'),
+    **{f'/mesh-assets/wasm/{name}': (f'mesh-assets/wasm/{name}', mime)
+       for name, mime in [
+           ('vision_wasm_internal.js', 'text/javascript; charset=utf-8'),
+           ('vision_wasm_internal.wasm', 'application/wasm'),
+           ('vision_wasm_nosimd_internal.js', 'text/javascript; charset=utf-8'),
+           ('vision_wasm_nosimd_internal.wasm', 'application/wasm'),
+       ]},
+}
 
-
-def command_store():
-    global STORE
-    with STORE_LOCK:
-        if STORE is None:
-            STORE = CommandStore(default_path())
-    return STORE
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -39,42 +40,6 @@ class Handler(BaseHTTPRequestHandler):
             self.send(403, {'error': 'Local origin required'})
             return False
         return True
-
-    def command_request(self):
-        token = self.headers.get('X-SilentOS-Token', '')
-        if not secrets.compare_digest(token.encode(), TOKEN.encode()):
-            self.send(403, {'error': 'Reload SilentOS to refresh its local session token'})
-            return False
-        return True
-
-    def command_post(self):
-        if not self.command_request():
-            return
-        try:
-            if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
-                raise ValueError('Expected application/json')
-            size = int(self.headers.get('Content-Length', '0'))
-            if not 0 < size <= 40000:
-                raise ValueError('JSON request must be between 1 and 40000 bytes')
-            data = json.loads(self.rfile.read(size))
-            if not isinstance(data, dict):
-                raise ValueError('Expected a JSON object')
-            if self.path == '/api/commands/parse':
-                result = parse_command(data.get('text'))
-            elif self.path == '/api/commands':
-                result = command_store().enqueue(data)
-            elif self.path == '/api/commands/cancel':
-                result = command_store().cancel(data.get('id'))
-            elif self.path == '/api/commands/resolve':
-                result = command_store().resolve_uncertain(data.get('id'))
-            else:
-                self.send(404, {'error': 'Not found'})
-                return
-            self.send(200, result)
-        except (ValueError, TypeError) as exc:
-            self.send(400, {'error': str(exc)})
-        except Exception:
-            self.send(500, {'error': 'Local command storage unavailable; check server logs and disk permissions'})
 
     def setup(self):
         super().setup()
@@ -98,20 +63,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/':
             self.send(200, PAGE.read_bytes(), 'text/html; charset=utf-8')
-        elif self.path == '/command.js':
-            self.send(200, (PAGE.parent / 'command.js').read_bytes(), 'text/javascript; charset=utf-8')
-        elif self.path == '/handoff.js':
-            self.send(200, (PAGE.parent / 'handoff.js').read_bytes(), 'text/javascript; charset=utf-8')
+        elif self.path in MESH_ASSETS:
+            name, mime = MESH_ASSETS[self.path]
+            self.send(200, (PAGE.parent / name).read_bytes(), mime)
         elif self.path == '/prism.js':
             self.send(200, (PAGE.parent / 'prism.js').read_bytes(), 'text/javascript; charset=utf-8')
         elif self.path == '/api/config':
-            self.send(200, {'api_url': BASE_URL, 'session_token': TOKEN, 'connector_command': shlex.join([sys.executable, str(PAGE.parent.parent / 'heyclicky_mcp.py')])})
-        elif self.path == '/api/commands':
-            if self.command_request():
-                try:
-                    self.send(200, {'commands': command_store().list()})
-                except Exception:
-                    self.send(500, {'error': 'Local command storage unavailable'})
+            self.send(200, {'api_url': BASE_URL})
         elif self.path == '/api/ready':
             try:
                 self.send(200, ready(BASE_URL))
@@ -122,9 +80,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.local_request():
-            return
-        if self.path == '/api/commands' or self.path.startswith('/api/commands/'):
-            self.command_post()
             return
         if self.path != '/api/transcribe':
             self.send(404, {'error': 'Not found'})
