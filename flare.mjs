@@ -1,5 +1,5 @@
 // No agent execution here: review result.text before handing it downstream.
-export const DEFAULT_URL = 'https://rush-kerry-marsh-entitled.trycloudflare.com';
+export const DEFAULT_URL = 'https://discretion-tub-means-programmers.trycloudflare.com';
 
 async function request(baseUrl, path, options = {}) {
   const response = await fetch(baseUrl.replace(/\/$/, '') + path, {
