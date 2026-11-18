@@ -1,13 +1,13 @@
 # Hosted FLARE client
 
-Public API verified November 14, 2026:
-`https://continually-priest-rural-moments.trycloudflare.com`
+Public readiness verified November 16, 2026 (`model_loaded: true`):
+`https://discretion-tub-means-programmers.trycloudflare.com`
 
-The tunnel runs on Amarel within job 63918217 on gpuk010, independently of
-any laptop. The current allocation ends November 14 at 11:43 PM Eastern.
+The tunnel runs on Amarel within job 63972268 on gpuk001 (A100), independently of
+any laptop. The current allocation ends November 16 at 7:15:40 PM Eastern.
 Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart
 field `video`. This is a temporary API URL, not a hosted camera webpage.
-The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63918217.log`
+The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63972268.log`
 on Amarel. A new allocation and tunnel will be needed after the job ends.
 
 ## Windows quick start
@@ -111,59 +111,6 @@ Prism Gradient uses Componentry’s WebGL shader adapted to plain JavaScript
 (`static/prism.js`, MIT attribution in `static/COMPONENTRY-LICENSE.txt`), with
 reduced-motion support and a CSS fallback when WebGL2 is unavailable.
 
-## Command assembly
-
-Press Start and record one instruction across multiple clips. The Current command
-panel joins returned clips in capture order with a space; it preserves wording,
-punctuation, and repetitions rather than guessing missing or overlapping words.
-Finish phrase (or Pause) pauses capture without closing the command. Start adds
-more clips to that same draft. Finish command stops capture and waits for the
-last recording and all queued uploads before marking the text Ready for review.
-With Continuous unchecked, each clip pauses capture but still belongs to the
-current command until Finish command is pressed.
-
-Review or edit the command while capture and uploads are idle. New command clears
-the current command without clearing transcript history. Recording, camera, or
-transcription failures mark the command Incomplete and require New command before
-recording another instruction. Clips shorter than half a second are still skipped.
-Commands live only in browser memory and are lost on reload. Ready means all clips
-returned, not that the instruction is semantically complete or correctly recognized.
-Finished commands now feed a parser and persistent local handoff queue; see below.
-The application itself does not send messages.
-
-Checks: `node tests/command.cjs`, `node tests/queue.cjs`, and
-`python3 -m unittest discover -s tests -p 'test_*.py'`.
-
-## Two-device caption and voice demo
-
-This is a one-way, turn-based conversation demo: the speaker records and reviews text on the Mac, and a listener sees captions and can use their browser's text-to-speech. It does **not** yet provide live video, microphone return audio, automatic transcript stitching, or a telephone call. Room transport uses short HTTP polling, not WebSockets. A working FLARE endpoint is required for transcription; a message can also be typed into Current command and finished for a text-only room test.
-
-On the speaker's Mac, connect both devices to a trusted LAN/hotspot that permits device-to-device traffic, then run:
-
-```sh
-python3 server.py --lan --api-url https://CURRENT-FLARE-HOST
-```
-
-Open `http://localhost:8000` on the Mac (localhost is needed for camera permission). Create a room in **Two-device conversation**. Find the Mac's LAN IPv4 address in Wi-Fi settings, or run `ipconfig getifaddr en0` on macOS (your active interface might differ). Enter it in Host LAN IP, copy the generated link, and share it privately with the listener. The listener opens that link on the second device and taps **Enable voice** and **Test voice**. The listener page needs neither camera nor microphone permission.
-
-On the speaker, record a phrase, click **Finish command**, review/edit the command, and click **Send reviewed command to listener**. The status indicates that the listener fetched the message; it does not prove audio played. Browser voices and autoplay policies vary: test the actual listener device. Captions arriving before voice is enabled are shown as text only. The browser queues spoken messages in order.
-
-Rooms expire after one hour, are held only in server memory, and disappear on restart. Listener links grant access to captions to anyone who holds them; create a fresh room if a link leaks. This LAN demo uses **unencrypted HTTP**, so use it only on a trusted private network; it is not suitable for sensitive conversations or public exposure. Camera/video upload and room creation are restricted to the server machine. The listener can only read and acknowledge captions, not submit speaker messages. Messages are retained in memory until room expiry/restart (maximum 200 per room). A receipt means the listener page received text, not that speech played. For remote devices or HTTPS on both phones, use a properly authenticated HTTPS deployment; do not expose the development server directly to the internet.
-
-If the listener cannot connect, check the IP address, server's `--lan` flag, firewall permissions, and client isolation on Wi-Fi. If transcription fails, get the current FLARE API URL; an expired tunnel cannot be fixed by the room. The room and UI tests are automated, but a real second device and actual audio playback still require manual validation.
-## Message parsing and HeyClicky connector
-
-After finishing a command, the Message handoff panel extracts explicit instructions
-such as `Send Alex on WhatsApp saying I will be there soon`. Review app, recipient,
-and exact message, choose draft or send mode, then queue it. Optional automatic
-queueing is off by default. The SQLite queue survives restarts and the local MCP
-connector supplies atomic claim and result-reporting tools for HeyClicky.
-
-See [HEYCLICKY.md](HEYCLICKY.md) for setup, supported phrasing, draft testing,
-recovery, and privacy. A connected **active** HeyClicky job is still needed; no
-automatic external wakeup or live message sending has been verified. Queueing
-alone never opens a messaging app or sends. End-to-end tests are still required.
-
 ## Longer recordings
 
 Eight seconds remains the default; 15, 30, and 60 seconds are also available.
@@ -182,6 +129,59 @@ public-footage upload preserved all 1,500 frames and returned a transcript throu
 the local proxy and public tunnel. This checks capacity, not long-form accuracy.
 
 Regression: `node tests/long_capture.cjs`.
+
+## Decorative face mesh
+
+The existing mirrored camera preview has a transparent cyan wireframe canvas,
+with brighter lips and subtle facial contours. It is cosmetic, not recognition,
+confidence, model output, or a measure of lip-reading quality. It is never drawn
+into recordings or sent to FLARE. The media stream and recorder are unchanged.
+
+MediaPipe 0.10.21 and the Face Landmarker model are bundled in
+`static/mesh-assets/`, including attribution and source URLs. The browser reads
+small (at most 384px) snapshots of the existing video and processes them locally
+in a worker. No extra permission or camera stream is used. Detection is capped
+at 10 Hz and backs off on slow devices, with one frame in flight; canvas drawing
+is capped at 30 Hz. Worker CPU overhead still depends on hardware. Disable it
+using **Details → Face mesh** if needed. Unsupported or failed initialization
+leaves the camera and transcription working without a mesh. Workers and canvas
+are cleared when video stops, the tab is hidden, the switch is off, or the page
+closes. Camera permission handling remains the existing browser flow.
+
+Tests: `node tests/mesh.cjs` covers mirrored/letterboxed geometry, backpressure,
+stale snapshots, toggle, camera end and cleanup. Existing queue, long recording,
+and backend tests cover pipeline regressions. Visual testing
+used moving public LRS3 footage in `tests/mesh_preview.py`; actual live webcam
+FPS and performance vary by device and have not been benchmarked.
+
+## Vercel hosting
+
+The connected Vercel project uses `vercel.json`: build command
+`node scripts/build.mjs`, framework **Other**, output directory **public**, and
+repository root as Root Directory. No Python server or package install is needed
+on Vercel. Pushes to the production branch build and deploy the static app.
+
+The build copies only `static/` and a generated public configuration file into
+`public/`. Python sources, model-host code, local recordings and presentation
+files are not served. MediaPipe/WASM assets remain on the site's own origin.
+HTTPS supports the existing camera permission flow.
+
+On Vercel, `/api/config` resolves to the generated config. Readiness and multipart
+video requests go directly from the browser to the hosted FLARE API. This avoids
+Vercel Function upload-size limits for long recordings. The FLARE API must permit
+the website origin through CORS (the current API permits `*`). Raw audio-free
+recordings are sent only to that configured model service. Transcripts and the
+cosmetic face mesh still work as before; the mesh never leaves the browser.
+
+Optional Vercel build variable: `FLARE_API_URL` overrides the default in
+`flare.mjs`. It is a **public browser-visible URL**, not a secret; use an HTTPS
+base URL without credentials/query/fragment. Redeploy after changing it. Static
+hosting does not keep the Amarel GPU job or temporary Cloudflare tunnel alive.
+The model must remain running separately for transcription to work.
+
+Local `python server.py` continues to proxy uploads as before. Checks:
+`node tests/vercel.cjs`, `node tests/queue.cjs`, `node tests/long_capture.cjs`,
+`node tests/mesh.cjs`, and the Python backend tests.
 
 ## Experimental Real-Time Communication Pipeline
 

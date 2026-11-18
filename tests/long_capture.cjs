@@ -6,7 +6,7 @@ const elements={};const el=id=>elements[id]??=( {value:id==='duration'?'60000':'
 let tick;let now=0,requests=[],instances=[],cameraOpens=0,trackStops=0;
 class Recorder{static isTypeSupported(){return true}constructor(){this.state='inactive';instances.push(this)}start(){this.state='recording'}stop(){this.state='inactive';this.ondataavailable({data:new Blob(['video'])});setImmediate(()=>this.onstop())}}
 const context={document:{getElementById:el,createElement:()=>({})},performance:{now:()=>now},Blob,AbortSignal,MediaRecorder:Recorder,window:{MediaRecorder:Recorder,addEventListener(){}},navigator:{mediaDevices:{getUserMedia:async()=>{cameraOpens++;return {getTracks:()=>[{stop(){trackStops++}}],getVideoTracks:()=>[{addEventListener(){}}]}}}},setInterval:fn=>{tick=fn;return 1},clearInterval(){},fetch:async(path)=>{if(path==='/api/config')return{ok:true,json:async()=>({api_url:'test'})};if(path==='/api/ready')return{ok:true,json:async()=>({model_loaded:true})};return new Promise(resolve=>requests.push(resolve));}};
-vm.createContext(context);vm.runInContext(fs.readFileSync(__dirname+'/../static/command.js','utf8'),context);vm.runInContext(html.split('<script>')[1].split('</script>')[0],context);
+vm.createContext(context);vm.runInContext(html.split('<script>')[1].split('</script>')[0],context);
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{
  await flush(); await el('start').onclick();
