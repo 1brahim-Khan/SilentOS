@@ -182,3 +182,13 @@ public-footage upload preserved all 1,500 frames and returned a transcript throu
 the local proxy and public tunnel. This checks capacity, not long-form accuracy.
 
 Regression: `node tests/long_capture.cjs`.
+
+## Experimental Real-Time Communication Pipeline
+
+[@Paarth-Rana](https://github.com/Paarth-Rana) developed a standalone prototype integrating FLARE lip-reading, LiveKit real-time communication, and Gradium text-to-speech for SilentOS.
+
+The prototype records silent video, sends it to FLARE for transcription, allows users to review or edit the generated text, and converts the message into speech delivered to another participant through LiveKit.
+
+This experimental implementation is maintained separately to preserve the architecture of the main SilentOS application.
+
+**Source code:** [LiveKit-Gradium](https://github.com/Paarth-Rana/LiveKit-Gradium)
