@@ -11,7 +11,7 @@ import urllib.request
 import urllib.parse
 import uuid
 
-DEFAULT_URL = "https://discretion-tub-means-programmers.trycloudflare.com"
+DEFAULT_URL = "https://hrs-expansion-erp-turned.trycloudflare.com"
 
 
 def request(base_url, endpoint, data=None, headers=None, timeout=120):

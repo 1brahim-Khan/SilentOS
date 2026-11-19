@@ -1,13 +1,13 @@
 # Hosted FLARE client
 
-Public readiness verified November 16, 2026 (`model_loaded: true`):
-`https://discretion-tub-means-programmers.trycloudflare.com`
+Public readiness verified November 19, 2026 (`model_loaded: true`):
+`https://hrs-expansion-erp-turned.trycloudflare.com`
 
-The tunnel runs on Amarel within job 63972268 on gpuk001 (A100), independently of
-any laptop. The current allocation ends November 16 at 7:15:40 PM Eastern.
+The tunnel runs on Amarel within job 64050686 on gpu040 (L40S), independently of
+any laptop. The current allocation ends November 19 at 5:34:35 PM Eastern.
 Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart
 field `video`. This is a temporary API URL, not a hosted camera webpage.
-The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63972268.log`
+The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-64050686.log`
 on Amarel. A new allocation and tunnel will be needed after the job ends.
 
 ## Windows quick start
