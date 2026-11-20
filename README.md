@@ -1,13 +1,13 @@
 # Hosted FLARE client
 
-Public readiness verified November 15, 2026 (`model_loaded: true`):
-`https://identity-inspection-cfr-items.trycloudflare.com`
+Public readiness verified November 16, 2026 (`model_loaded: true`):
+`https://discretion-tub-means-programmers.trycloudflare.com`
 
-The tunnel runs on Amarel within job 63926329 on gpu028 (A100 40 GB), independently of
-any laptop. The current allocation ends November 15 at 6:20:51 AM Eastern.
+The tunnel runs on Amarel within job 63972268 on gpuk001 (A100), independently of
+any laptop. The current allocation ends November 16 at 7:15:40 PM Eastern.
 Readiness is `GET /ready`; transcription is `POST /transcribe` with multipart
 field `video`. This is a temporary API URL, not a hosted camera webpage.
-The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63926329.log`
+The tunnel log is `~/projects/flare_webcam_demo/reports/cloudflare-63972268.log`
 on Amarel. A new allocation and tunnel will be needed after the job ends.
 
 ## Windows quick start
@@ -182,3 +182,13 @@ The model must remain running separately for transcription to work.
 Local `python server.py` continues to proxy uploads as before. Checks:
 `node tests/vercel.cjs`, `node tests/queue.cjs`, `node tests/long_capture.cjs`,
 `node tests/mesh.cjs`, and the Python backend tests.
+
+## Experimental Real-Time Communication Pipeline
+
+[@Paarth-Rana](https://github.com/Paarth-Rana) developed a standalone prototype integrating FLARE lip-reading, LiveKit real-time communication, and Gradium text-to-speech for SilentOS.
+
+The prototype records silent video, sends it to FLARE for transcription, allows users to review or edit the generated text, and converts the message into speech delivered to another participant through LiveKit.
+
+This experimental implementation is maintained separately to preserve the architecture of the main SilentOS application.
+
+**Source code:** [LiveKit-Gradium](https://github.com/Paarth-Rana/LiveKit-Gradium)
